@@ -5,7 +5,8 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#2b3742">
 <link rel="icon" id="fav" href="">
-<link rel="apple-touch-icon" id="ati" href="">
+<link rel="apple-touch-icon" href="icon-192.png">
+<link rel="manifest" href="manifest.webmanifest">
 <meta name="apple-mobile-web-app-title" content="Mecano Service">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <title>Mecano Service</title>
@@ -149,6 +150,8 @@ td input,td select{padding:7px 8px}
 .fab-new{white-space:nowrap}
 .tabbar{display:none}
 .salir-m{display:none}
+.inst{display:none!important}
+body.can-install .inst{display:inline-flex!important}
 .login{position:fixed;inset:0;z-index:100;background:var(--side);color:var(--side-ink);display:flex;align-items:center;justify-content:center;padding:24px}
 .login .box{width:min(380px,100%);display:flex;flex-direction:column;gap:14px;align-items:center;text-align:center}
 .login img{width:96px;height:96px}
@@ -279,7 +282,7 @@ async function enter(){
   boot();
 }
 async function startApp(){
-  document.querySelectorAll("[data-logo]").forEach(i=>i.src=LOGO);document.getElementById("fav").href=LOGO;document.getElementById("ati").href=LOGO;
+  document.querySelectorAll("[data-logo]").forEach(i=>i.src=LOGO);document.getElementById("fav").href=LOGO;
   if(/PEGAR/.test(CONFIG.SUPABASE_URL+CONFIG.SUPABASE_KEY)){showLogin("Falta configurar la plataforma: pega la dirección y la clave de Supabase al inicio del archivo index.html.",true);return}
   if(!window.supabase){showLogin("No se pudo cargar la plataforma. Revisa tu conexión a internet y recarga la página.",true);return}
   sb = supabase.createClient(CONFIG.SUPABASE_URL,CONFIG.SUPABASE_KEY);
@@ -379,7 +382,7 @@ function renderNav(){const v=view();const pend=pendientes().length;
   document.getElementById("tabbar").innerHTML=NAV.map(([k,n])=>`<a href="#${k}" class="${v===k?"on":""}">${svg(k)}${n}</a>`).join("")}
 window.addEventListener("hashchange",()=>{render();window.scrollTo(0,0)});
 
-function header(title,extra=""){return `<div class="top"><img class="mlogo" src="${LOGO}" alt="" style="display:none;width:38px;height:38px"><h1>${title}</h1><button class="btn sm salir-m" data-act="salir">Salir</button>
+function header(title,extra=""){return `<div class="top"><img class="mlogo" src="${LOGO}" alt="" style="display:none;width:38px;height:38px"><h1>${title}</h1><button class="btn sm pri inst" data-act="instalar">Instalar app</button><button class="btn sm salir-m" data-act="salir">Salir</button>
 <div class="search">${svg("search")}<input id="gq" type="search" placeholder="Buscar cliente, RUT, teléfono, OT o N° de serie" autocomplete="off" value="${esc(S.q)}" aria-label="Buscar"><div id="gres"></div></div>
 ${extra}<button class="btn pri big fab-new" data-act="nuevo">${svg("plus")}Nuevo ingreso</button></div>`}
 
@@ -728,6 +731,11 @@ document.addEventListener("change",e=>{const t=e.target,o=S.modal?.t==="ord"?ord
   else if(t.dataset.foto&&t.files?.length){subirFotos(o,[...t.files])}});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&S.modal)closeModal()});
 document.addEventListener("click",e=>{if(!e.target.closest(".search")){const b=document.getElementById("gres");if(b)b.innerHTML=""}},true);
+let instalarEvt=null;
+window.addEventListener("beforeinstallprompt",e=>{e.preventDefault();instalarEvt=e;document.body.classList.add("can-install")});
+window.addEventListener("appinstalled",()=>{instalarEvt=null;document.body.classList.remove("can-install");toast("App instalada. Búscala en tu pantalla de inicio.")});
+document.addEventListener("click",async e=>{if(!e.target.closest('[data-act="instalar"]')||!instalarEvt)return;instalarEvt.prompt();const r=await instalarEvt.userChoice.catch(()=>null);if(r&&r.outcome==="accepted"){instalarEvt=null;document.body.classList.remove("can-install")}});
+if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js").catch(()=>{}));
 startApp();
 </script>
 
