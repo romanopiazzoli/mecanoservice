@@ -352,7 +352,8 @@ function fmtRut(v){const c=String(v||"").replace(/[^0-9kK]/g,"").toUpperCase();i
 function rutOk(v){const c=String(v||"").replace(/[^0-9kK]/g,"").toUpperCase();if(c.length<2)return false;return rutDV(c.slice(0,-1))===c.slice(-1)}
 const cliente=id=>S.clientes.find(c=>c.id===id);
 const orden=id=>S.ordenes.find(o=>o.id===id);
-function totales(o){const rep=(o.repuestos||[]).reduce((a,r)=>a+(Number(r.cantidad)||0)*(Number(r.precio)||0),0);const mo=Number(o.manoObra)||0;const mg=o.mantencionOn?(Number(o.mantencion)||0):0;const neto=o.esGarantia?0:rep+mo+mg;const iva=Math.round(neto*IVA);return{rep,mo,mg,neto,iva,total:neto+iva}}
+const servNom=o=>o.servicio==="mg"?"Mantención general":"Mano de obra";
+function totales(o){const rep=(o.repuestos||[]).reduce((a,r)=>a+(Number(r.cantidad)||0)*(Number(r.precio)||0),0);const mo=Number(o.manoObra)||0;const neto=o.esGarantia?0:rep+mo;const iva=Math.round(neto*IVA);return{rep,mo,neto,iva,total:neto+iva}}
 function pill(k){const e=EST[k]||EST.diag;return `<span class="pill" style="--c:var(${e.c})">${esc(e.n)}</span>`}
 function toast(t){const el=document.getElementById("toast");el.textContent=t;el.hidden=false;clearTimeout(toast.t);toast.t=setTimeout(()=>el.hidden=true,2600)}
 function waNum(c){let n=String(c?.whatsapp||c?.telefono||"").replace(/\D/g,"");if(n.length===9)n="56"+n;if(n.length===8)n="569"+n;return n}
@@ -541,10 +542,10 @@ ${assets?`<label for="o-foto">${m_upl===o.id?"Subiendo…":"+ Agregar foto"}<inp
 ${reps.length?`<div class="tscroll"><table><thead><tr><th>Repuesto</th><th>Código</th><th style="width:80px">Cant.</th><th style="width:130px">Precio neto</th><th style="width:150px">Estado</th><th class="num">Subtotal</th><th></th></tr></thead><tbody>
 ${reps.map((r,i)=>`<tr><td><input id="r${i}-nombre" data-rep="${i}|nombre" value="${esc(r.nombre)}" aria-label="Nombre repuesto"></td><td><input id="r${i}-codigo" class="mono" data-rep="${i}|codigo" value="${esc(r.codigo)}" aria-label="Código"></td><td><input id="r${i}-cant" type="number" min="0" data-rep="${i}|cantidad" value="${esc(r.cantidad)}" aria-label="Cantidad"></td><td><input id="r${i}-precio" type="number" min="0" step="10" data-rep="${i}|precio" value="${esc(r.precio)}" aria-label="Precio"></td><td><select id="r${i}-est" data-rep="${i}|estado" aria-label="Estado">${REP_EST.map(s=>`<option ${r.estado===s?"selected":""}>${s}</option>`).join("")}</select></td><td class="num">${clp((Number(r.cantidad)||0)*(Number(r.precio)||0))}</td><td><button class="btn sm danger" data-delrep="${i}" aria-label="Quitar">×</button></td></tr>`).join("")}</tbody></table></div>`:`<p class="muted">Sin repuestos todavía.</p>`}</section>
 <section class="panel"><div class="panel-h"><h3>Presupuesto</h3>${o.esGarantia?"":`<div class="chips">${["Pendiente","Aprobado","Rechazado"].map(s=>`<button class="chip ${o.presupuestoEstado===s?"on":""}" data-pe="${s}">${s}</button>`).join("")}</div>`}</div>
-<div class="form"><div class="field"><label for="o-manoObra">Mano de obra (neto)</label><input id="o-manoObra" type="number" min="0" step="1000" data-of2="manoObra" value="${esc(o.manoObra||0)}"></div>
-<div class="field"><label for="o-mantencion">Mantención general (neto)</label><div style="display:flex;gap:8px;align-items:center"><label for="o-mg-on" style="display:flex;align-items:center;gap:8px;padding:10px 12px;border:1.5px solid var(--line);border-radius:8px;background:var(--surface);white-space:nowrap;cursor:pointer;text-transform:none;letter-spacing:0;font-size:1rem;font-weight:500;color:var(--ink)"><input id="o-mg-on" type="checkbox" data-mg="1" ${o.mantencionOn?"checked":""} style="width:20px;height:20px;padding:0;accent-color:var(--accent)">Incluir</label><input id="o-mantencion" type="number" min="0" step="1000" data-of2="mantencion" value="${esc(o.mantencion||0)}" aria-label="Precio mantención general (neto)"></div></div>
+<div class="field"><label>Tipo de servicio</label><div class="chips">${[["mo","Mano de obra"],["mg","Mantención general"]].map(([k,n])=>`<button class="chip ${(o.servicio||"mo")===k?"on":""}" data-serv="${k}">${n}</button>`).join("")}</div></div>
+<div class="form"><div class="field"><label for="o-manoObra">Valor ${servNom(o).toLowerCase()} (neto)</label><input id="o-manoObra" type="number" min="0" step="1000" data-of2="manoObra" value="${esc(o.manoObra||0)}"></div>
 <div class="field"><label for="o-garantiaDias">Días de garantía de la reparación</label><input id="o-garantiaDias" type="number" min="0" data-of2="garantiaDias" value="${esc(o.garantiaDias??90)}"></div></div>
-<div class="totals"><span>Repuestos</span><span>${clp(T.rep)}</span><span>Mano de obra</span><span>${clp(T.mo)}</span>${o.mantencionOn?`<span>Mantención general</span><span>${clp(T.mg)}</span>`:""}${o.esGarantia?`<span>Descuento garantía</span><span>−${clp(T.rep+T.mo+T.mg)}</span>`:""}<span>Neto</span><span>${clp(T.neto)}</span><span>IVA 19%</span><span>${clp(T.iva)}</span><span class="tt">Total</span><span class="tt">${clp(T.total)}</span></div>
+<div class="totals"><span>Repuestos</span><span>${clp(T.rep)}</span><span>${servNom(o)}</span><span>${clp(T.mo)}</span>${o.esGarantia?`<span>Descuento garantía</span><span>−${clp(T.rep+T.mo)}</span>`:""}<span>Neto</span><span>${clp(T.neto)}</span><span>IVA 19%</span><span>${clp(T.iva)}</span><span class="tt">Total</span><span class="tt">${clp(T.total)}</span></div>
 <div class="actions"><button class="btn pri" data-act="pdf">${svg("doc")}Descargar PDF</button><a class="btn wa" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgPresu(o))}" target="_blank" rel="noopener">${svg("wa")}Enviar por WhatsApp</a><button class="btn" data-act="copymail">Copiar texto para email</button></div>
 ${c?.email?`<p class="muted" style="margin:0">Email del cliente: <span class="mono" style="user-select:all">${esc(c.email)}</span>. Adjunta el PDF descargado al correo o al chat de WhatsApp.</p>`:`<p class="muted" style="margin:0">Adjunta el PDF descargado al chat de WhatsApp o al correo.</p>`}</section>
 ${gar?`<section class="panel"><div class="panel-h"><h3>Garantía</h3>${garRow(gar)}</div></section>`:""}
@@ -626,7 +627,7 @@ function msgPresu(o){const c=cliente(o.clienteId);const T=totales(o);
   return `Hola ${c?.nombre||""}, le escribimos de Mecano Service por su equipo ${o.tipo} ${o.marca||""} ${o.modelo||""} (orden ${otNum(o.numero)}).\n\n`+
   (o.diagnostico?`Diagnóstico: ${o.diagnostico}\n\n`:"")+
   ((o.repuestos||[]).length?`Repuestos:\n${o.repuestos.map(r=>`• ${r.cantidad} x ${r.nombre}: ${clp(r.cantidad*r.precio)}`).join("\n")}\n`:"")+
-  `Mano de obra: ${clp(T.mo)}\n`+(o.mantencionOn?`Mantención general: ${clp(T.mg)}\n`:"")+`Neto: ${clp(T.neto)}\nIVA 19%: ${clp(T.iva)}\nTOTAL: ${clp(T.total)}\n\n`+(o.esGarantia?"Esta reparación está cubierta por garantía, sin costo para usted.\n\n":"¿Nos confirma si aprueba el presupuesto para continuar con la reparación?\n\n")+`Saludos, Mecano Service`}
+  `${servNom(o)}: ${clp(T.mo)}\nNeto: ${clp(T.neto)}\nIVA 19%: ${clp(T.iva)}\nTOTAL: ${clp(T.total)}\n\n`+(o.esGarantia?"Esta reparación está cubierta por garantía, sin costo para usted.\n\n":"¿Nos confirma si aprueba el presupuesto para continuar con la reparación?\n\n")+`Saludos, Mecano Service`}
 
 async function pdf(o){if(!window.jspdf){toast("No se pudo cargar el generador de PDF. Recarga la página.");return}
   const c=cliente(o.clienteId)||{};const T=totales(o);const {jsPDF}=window.jspdf;const d=new jsPDF({unit:"mm",format:"a4"});
@@ -645,9 +646,9 @@ async function pdf(o){if(!window.jspdf){toast("No se pudo cargar el generador de
   y+=2;d.setFillColor(43,55,66);d.rect(15,y,180,8,"F");d.setTextColor(255,255,255);d.setFont("helvetica","bold");d.setFontSize(9);
   d.text("DESCRIPCIÓN",18,y+5.5);d.text("CÓDIGO",105,y+5.5);d.text("CANT.",135,y+5.5);d.text("P. UNIT.",160,y+5.5,{align:"right"});d.text("SUBTOTAL",192,y+5.5,{align:"right"});y+=8;
   d.setFont("helvetica","normal");d.setTextColor(28,39,49);d.setFontSize(10);
-  const rows=[...(o.repuestos||[]).map(r=>[r.nombre,r.codigo||"",r.cantidad,r.precio,(r.cantidad||0)*(r.precio||0)]),["Mano de obra","",1,T.mo,T.mo],...(o.mantencionOn?[["Mantención general","",1,T.mg,T.mg]]:[])];
+  const rows=[...(o.repuestos||[]).map(r=>[r.nombre,r.codigo||"",r.cantidad,r.precio,(r.cantidad||0)*(r.precio||0)]),[servNom(o),"",1,T.mo,T.mo]];
   rows.forEach((r,i)=>{if(y>265){d.addPage();y=20}if(i%2){d.setFillColor(242,245,247);d.rect(15,y,180,7,"F")}d.text(d.splitTextToSize(String(r[0]),84)[0],18,y+5);d.text(String(r[1]),105,y+5);d.text(String(r[2]),138,y+5);d.text(clp(r[3]),160,y+5,{align:"right"});d.text(clp(r[4]),192,y+5,{align:"right"});y+=7});
-  y+=6;const tl=[["Neto",T.neto],["IVA 19%",T.iva]];if(o.esGarantia)tl.unshift(["Descuento garantía",-(T.rep+T.mo+T.mg)]);
+  y+=6;const tl=[["Neto",T.neto],["IVA 19%",T.iva]];if(o.esGarantia)tl.unshift(["Descuento garantía",-(T.rep+T.mo)]);
   tl.forEach(([n,v])=>{d.text(n,150,y);d.text((v<0?"-":"")+clp(Math.abs(v)),192,y,{align:"right"});y+=6});
   d.setFont("helvetica","bold");d.setFontSize(13);d.setTextColor(...blue);d.text("TOTAL",150,y+2);d.text(clp(T.total),192,y+2,{align:"right"});y+=14;
   d.setFont("helvetica","normal");d.setFontSize(8.5);d.setTextColor(...gray);
@@ -660,7 +661,7 @@ async function excel(){if(!window.XLSX){toast("No se pudo cargar el exportador. 
   const wb=XLSX.utils.book_new();
   const add=(n,rows)=>XLSX.utils.book_append_sheet(wb,XLSX.utils.json_to_sheet(rows.length?rows:[{Sin:"datos"}]),n);
   add("Clientes",S.clientes.map(c=>({Nombre:c.nombre,RUT:c.rut,Teléfono:c.telefono,WhatsApp:c.whatsapp,Email:c.email,Dirección:c.direccion,Comuna:c.comuna,Notas:c.notas})));
-  add("Órdenes",[...S.ordenes].sort((a,b)=>a.numero-b.numero).map(o=>{const T=totales(o);return{OT:otNum(o.numero),Cliente:cliente(o.clienteId)?.nombre||o.clienteNombre,Tipo:o.tipo,Marca:o.marca,Modelo:o.modelo,Serie:o.serie,Accesorios:o.accesorios,Falla:o.falla,Diagnóstico:o.diagnostico,Técnico:o.tecnico,Estado:EST[o.estado]?.n,Ingreso:o.fechaIngreso,"Entrega estimada":o.fechaEstimada,Entregado:o.fechaEntrega||"",Presupuesto:o.presupuestoEstado,"Mantención general":T.mg,Neto:T.neto,IVA:T.iva,Total:T.total,Garantía:o.esGarantia?"Sí":"No"}}));
+  add("Órdenes",[...S.ordenes].sort((a,b)=>a.numero-b.numero).map(o=>{const T=totales(o);return{OT:otNum(o.numero),Cliente:cliente(o.clienteId)?.nombre||o.clienteNombre,Tipo:o.tipo,Marca:o.marca,Modelo:o.modelo,Serie:o.serie,Accesorios:o.accesorios,Falla:o.falla,Diagnóstico:o.diagnostico,Técnico:o.tecnico,Estado:EST[o.estado]?.n,Ingreso:o.fechaIngreso,"Entrega estimada":o.fechaEstimada,Entregado:o.fechaEntrega||"",Presupuesto:o.presupuestoEstado,Servicio:servNom(o),"Valor servicio":T.mo,Neto:T.neto,IVA:T.iva,Total:T.total,Garantía:o.esGarantia?"Sí":"No"}}));
   add("Repuestos",S.ordenes.flatMap(o=>(o.repuestos||[]).map(r=>({OT:otNum(o.numero),Repuesto:r.nombre,Código:r.codigo,Cantidad:r.cantidad,"Precio neto":r.precio,Subtotal:(r.cantidad||0)*(r.precio||0),Estado:r.estado}))));
   add("Garantías",S.garantias.map(g=>({Tipo:g.tipo==="fabrica"?"Fábrica":"Taller",Cliente:cliente(g.clienteId)?.nombre,Equipo:g.equipo,Serie:g.serie,Desde:g.inicio,Vence:g.vence,Estado:garEstado(g),Notas:g.notas})));
   const out=XLSX.write(wb,{type:"array",bookType:"xlsx"});
@@ -677,6 +678,7 @@ document.addEventListener("click",async e=>{const t=e.target.closest("button,a,[
   if(d.aviso){const oo=orden(d.aviso);if(oo&&!oo.avisoRecibido)upd("ordenes",oo.id,{avisoRecibido:new Date().toISOString()});return}
   if(d.delfoto&&o){const f=(o.fotos||[])[Number(d.delfoto)];if(f){m_delfoto=f.url;renderModal()}return}
   if(d.delfotook&&o){const f=(o.fotos||[])[Number(d.delfotook)];m_delfoto=null;if(!f)return;const rest=(o.fotos||[]).filter(x=>x.url!==f.url);await upd("ordenes",o.id,{fotos:rest});if(assets&&assets.delete&&f.id)assets.delete(f.id).catch(()=>{});toast("Foto eliminada");return}
+  if(d.serv&&o){if((o.servicio||"mo")!==d.serv)upd("ordenes",o.id,{servicio:d.serv});return}
   if(d.of){S.ordFilter=d.of;render();return}
   if(d.gt){S.garTab=d.gt;render();return}
   if(d.rt){S.repTab=d.rt;render();return}
@@ -727,8 +729,7 @@ document.addEventListener("input",e=>{const t=e.target;
 document.addEventListener("change",e=>{const t=e.target,o=S.modal?.t==="ord"?orden(S.modal.id):null;
   if(/-rut$/.test(t.id)&&t.value)t.value=fmtRut(t.value);
   if(!o)return;
-  if(t.dataset.of2){const k=t.dataset.of2;let v=t.value;if(k==="manoObra"||k==="garantiaDias"||k==="mantencion")v=Number(v)||0;if(o[k]!==v)upd("ordenes",o.id,{[k]:v,...(k==="mantencion"&&v>0&&!o.mantencionOn?{mantencionOn:true}:{})})}
-  else if(t.dataset.mg){upd("ordenes",o.id,{mantencionOn:t.checked})}
+  if(t.dataset.of2){const k=t.dataset.of2;let v=t.value;if(k==="manoObra"||k==="garantiaDias")v=Number(v)||0;if(o[k]!==v)upd("ordenes",o.id,{[k]:v})}
   else if(t.dataset.rep){const[i,f]=t.dataset.rep.split("|");setRep(o,Number(i),f,t.value)}
   else if(t.dataset.foto&&t.files?.length){subirFotos(o,[...t.files])}});
 document.addEventListener("keydown",e=>{if(e.key==="Escape"&&S.modal)closeModal()});
