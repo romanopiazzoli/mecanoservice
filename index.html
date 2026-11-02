@@ -503,14 +503,17 @@ m.nuevoCli?`<div class="form">${cliFields({nombre:m.cq&&!/\d/.test(m.cq)?m.cq:""
 <span class="err" id="nerr"></span>
 <div class="actions"><button class="btn pri big" data-act="guardaringreso">Guardar ingreso</button><button class="btn" data-act="cerrar">Cancelar</button></div>`)}
 
-function mOrden(o){const c=cliente(o.clienteId);const T=totales(o);const reps=o.repuestos||[];const orig=o.garantiaDe?orden(o.garantiaDe):null;const gar=S.garantias.find(g=>g.ordenId===o.id);
+function mOrden(o){prefetchFotos(o);const c=cliente(o.clienteId);const T=totales(o);const reps=o.repuestos||[];const orig=o.garantiaDe?orden(o.garantiaDe):null;const gar=S.garantias.find(g=>g.ordenId===o.id);
   return shell(`${otNum(o.numero)} · ${esc(o.tipo)} ${esc(o.marca||"")}`,`
 ${!S.canWrite?`<p class="notice">Estás en modo solo lectura.</p>`:""}
 <section class="panel"><h3>Estado de la reparación</h3><div class="estados">${ESTADOS.map(e=>`<button class="est ${o.estado===e.k?"on":""}" style="--c:var(${e.c})" data-est="${e.k}"><i></i>${e.n}</button>`).join("")}</div>
 ${o.esGarantia?`<p class="notice">Reclamo de garantía${orig?` de la orden <button class="btn sm" data-ord="${orig.id}">${otNum(orig.numero)}</button>`:""}. No se cobra al cliente.</p>`:""}</section>
 ${o.esGarantia?"":`<section class="panel${o.avisoRecibido?"":" warnbar"}" style="--c:var(--s-listo)"><div class="panel-h"><h3>Aviso de equipo recibido</h3>${o.avisoRecibido?`<span class="pill" style="--c:var(--s-listo)">WhatsApp abierto el ${fmtD(o.avisoRecibido)}</span>`:`<span class="pill" style="--c:var(--s-aprob)">Pendiente</span>`}</div>
 <p class="muted" style="margin:0">Avísale al cliente que su equipo quedó recibido para revisión, con su número de orden, la falla y los accesorios que dejó.</p>
-<div class="actions"><a class="btn wa" data-aviso="${o.id}" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgRecibido(o))}" target="_blank" rel="noopener">${svg("wa")}Avisar recepción por WhatsApp</a><button class="btn" data-act="copyrecibido">Copiar texto para email</button></div>
+${(o.fotos||[]).length?`<div class="photos">${o.fotos.slice(0,4).map(f=>`<img src="${esc(f.url)}" alt="Foto del equipo" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">`).join("")}</div>`:`<p class="notice" style="margin:0">Toma una foto del equipo para enviarla junto con el aviso.</p>`}
+<div class="actions">${assets?`<label class="btn" for="o-foto2" style="cursor:pointer">${m_upl===o.id?"Subiendo foto…":(o.fotos||[]).length?"+ Otra foto":"Tomar foto del equipo"}<input id="o-foto2" type="file" accept="image/*" capture="environment" multiple data-foto="${o.id}" style="display:none"></label>`:""}
+${(o.fotos||[]).length?`<button class="btn wa" data-act="avisofoto">${svg("wa")}Enviar aviso con foto</button><a class="btn" data-aviso="${o.id}" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgRecibido(o))}" target="_blank" rel="noopener">Solo texto</a>`:`<a class="btn wa" data-aviso="${o.id}" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgRecibido(o))}" target="_blank" rel="noopener">${svg("wa")}Avisar recepción por WhatsApp</a>`}
+<button class="btn" data-act="copyrecibido">Copiar texto para email</button></div>
 ${waNum(c)?"":`<p class="err" style="margin:0">Este cliente no tiene teléfono ni WhatsApp. Agrégalo en su ficha para enviar el aviso directo a su chat.</p>`}</section>`}
 <section class="panel"><div class="panel-h"><h3>Cliente</h3>${c?`<button class="btn sm" data-cli="${c.id}">Ver ficha</button>`:""}</div>
 <div class="kv"><div><span>Nombre</span>${esc(c?.nombre||o.clienteNombre||"—")}</div><div><span>RUT</span><span class="mono" style="text-transform:none;letter-spacing:0;font-size:.92em;color:var(--ink)">${esc(c?.rut||"—")}</span></div><div><span>Teléfono</span>${esc(c?.telefono||"—")}</div><div><span>Email</span>${esc(c?.email||"—")}</div></div></section>
@@ -597,6 +600,16 @@ function msgRecibido(o){const c=cliente(o.clienteId);const eq=[o.tipo,o.marca,o.
   return `Hola ${c?.nombre||""}, le saludamos de Mecano Service.\n\nLe confirmamos que recibimos su equipo *${eq}*${o.serie?` (N° serie ${o.serie})`:""} el ${fmtD(o.fechaIngreso)} para revisión.\n\n*N° de orden: ${otNum(o.numero)}*\n`+
   (o.falla?`Falla reportada: ${o.falla}\n`:"")+(o.accesorios?`Accesorios recibidos: ${o.accesorios}\n`:"")+
   `\nGuarde su número de orden para cualquier consulta.\nSaludos, Mecano Service`}
+const fotoCache=new Map();
+function prefetchFotos(o){(o.fotos||[]).slice(0,4).forEach((f,i)=>{if(fotoCache.has(f.url))return;fotoCache.set(f.url,null);fetch(f.url).then(r=>r.blob()).then(b=>fotoCache.set(f.url,new File([b],`${otNum(o.numero)}-foto${i+1}.jpg`,{type:b.type||"image/jpeg"}))).catch(()=>fotoCache.delete(f.url))})}
+function avisoConFoto(o){const txt=msgRecibido(o);const fotos=(o.fotos||[]).slice(0,4);const files=fotos.map(f=>fotoCache.get(f.url)).filter(Boolean);
+  try{navigator.clipboard.writeText(txt).catch(()=>{})}catch(e){}
+  const marcar=()=>{if(!o.avisoRecibido)upd("ordenes",o.id,{avisoRecibido:new Date().toISOString()})};
+  if(files.length&&navigator.canShare&&navigator.canShare({files})){
+    toast("Elige WhatsApp y el chat del cliente. El texto también quedó copiado por si no aparece.");
+    navigator.share({files,text:txt}).then(marcar).catch(e=>{if(e&&e.name!=="AbortError")abrirConLinks()});return}
+  abrirConLinks();
+  function abrirConLinks(){const t=txt+"\n\nFoto"+(fotos.length>1?"s":"")+" del equipo:\n"+fotos.map(f=>f.url).join("\n");window.open(`https://wa.me/${waNum(cliente(o.clienteId))}?text=${encodeURIComponent(t)}`,"_blank","noopener");marcar()}}
 function msgPresu(o){const c=cliente(o.clienteId);const T=totales(o);
   return `Hola ${c?.nombre||""}, le escribimos de Mecano Service por su equipo ${o.tipo} ${o.marca||""} ${o.modelo||""} (orden ${otNum(o.numero)}).\n\n`+
   (o.diagnostico?`Diagnóstico: ${o.diagnostico}\n\n`:"")+
@@ -674,6 +687,7 @@ document.addEventListener("click",async e=>{const t=e.target.closest("button,a,[
    case "pdf":if(o)pdf(o);break;
    case "excel":excel();break;
    case "copymail":if(o){const txt=msgPresu(o);try{await navigator.clipboard.writeText(txt);toast("Texto copiado. Pégalo en tu correo.")}catch(x){const ta=document.createElement("textarea");ta.value=txt;ta.style.width="100%";ta.rows=10;t.after(ta);ta.select();toast("Selecciona y copia el texto")}}break;
+   case "avisofoto":if(o)avisoConFoto(o);break;
    case "copyrecibido":if(o){const txt=msgRecibido(o);try{await navigator.clipboard.writeText(txt);toast("Texto copiado. Pégalo en tu correo.")}catch(x){const ta=document.createElement("textarea");ta.value=txt;ta.style.width="100%";ta.rows=10;t.after(ta);ta.select();toast("Selecciona y copia el texto")}}break;
    case "delord":m_conf="ord";renderModal();break;
    case "delcli":m_conf="cli";renderModal();break;
