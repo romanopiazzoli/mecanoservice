@@ -135,6 +135,12 @@ td input,td select{padding:7px 8px}
 .photos a{border-style:solid}
 .photos img{width:100%;height:100%;object-fit:cover}
 .photos input{display:none}
+.ph{position:relative;display:inline-flex;flex:none}
+.ph a{display:block;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
+.ph img{width:100%;height:100%;object-fit:cover}
+.phx{position:absolute;top:4px;right:4px;width:30px;height:30px;border-radius:50%;border:0;background:rgba(0,0,0,.68);color:#fff;font-size:1.2rem;line-height:1;cursor:pointer;display:flex;align-items:center;justify-content:center}
+.phc{position:absolute;inset:0;display:flex;flex-direction:column;gap:4px;align-items:center;justify-content:center;background:rgba(10,16,22,.72);border-radius:8px;padding:4px}
+.phc .btn{min-height:28px;padding:3px 8px;font-size:.78rem;width:100%}
 .totals{display:grid;grid-template-columns:1fr auto;gap:4px 24px;max-width:340px;margin-left:auto;font-variant-numeric:tabular-nums}
 .totals .tt{font-family:var(--f-disp);font-size:1.5rem;font-weight:700;border-top:2px solid var(--ink);padding-top:4px}
 .actions{display:flex;gap:10px;flex-wrap:wrap}
@@ -237,6 +243,7 @@ const shimDb = {
   }
 };
 const shimAssets = {
+  async delete(id){const {error}=await sb.storage.from("fotos").remove([id]);if(error)throw error;},
   async upload(blob){
     const ext = ((blob.type||"").split("/")[1]||"jpg").replace("jpeg","jpg");
     const path = `${new Date().toISOString().slice(0,7)}/${crypto.randomUUID()}.${ext}`;
@@ -510,7 +517,7 @@ ${!S.canWrite?`<p class="notice">Estás en modo solo lectura.</p>`:""}
 ${o.esGarantia?`<p class="notice">Reclamo de garantía${orig?` de la orden <button class="btn sm" data-ord="${orig.id}">${otNum(orig.numero)}</button>`:""}. No se cobra al cliente.</p>`:""}</section>
 ${o.esGarantia?"":`<section class="panel${o.avisoRecibido?"":" warnbar"}" style="--c:var(--s-listo)"><div class="panel-h"><h3>Aviso de equipo recibido</h3>${o.avisoRecibido?`<span class="pill" style="--c:var(--s-listo)">WhatsApp abierto el ${fmtD(o.avisoRecibido)}</span>`:`<span class="pill" style="--c:var(--s-aprob)">Pendiente</span>`}</div>
 <p class="muted" style="margin:0">Avísale al cliente que su equipo quedó recibido para revisión, con su número de orden, la falla y los accesorios que dejó.</p>
-${(o.fotos||[]).length?`<div class="photos">${o.fotos.slice(0,4).map(f=>`<img src="${esc(f.url)}" alt="Foto del equipo" style="width:76px;height:76px;object-fit:cover;border-radius:8px;border:1px solid var(--line)">`).join("")}</div>`:`<p class="notice" style="margin:0">Toma una foto del equipo para enviarla junto con el aviso.</p>`}
+${(o.fotos||[]).length?`<div class="photos">${o.fotos.slice(0,4).map((f,i)=>fotoTile(f,i,76)).join("")}</div>`:`<p class="notice" style="margin:0">Toma una foto del equipo para enviarla junto con el aviso.</p>`}
 <div class="actions">${assets?`<label class="btn" for="o-foto2" style="cursor:pointer">${m_upl===o.id?"Subiendo foto…":(o.fotos||[]).length?"+ Otra foto":"Tomar foto del equipo"}<input id="o-foto2" type="file" accept="image/*" capture="environment" multiple data-foto="${o.id}" style="display:none"></label>`:""}
 ${(o.fotos||[]).length?`<button class="btn wa" data-act="avisofoto">${svg("wa")}Enviar aviso con foto</button><a class="btn" data-aviso="${o.id}" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgRecibido(o))}" target="_blank" rel="noopener">Solo texto</a>`:`<a class="btn wa" data-aviso="${o.id}" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgRecibido(o))}" target="_blank" rel="noopener">${svg("wa")}Avisar recepción por WhatsApp</a>`}
 <button class="btn" data-act="copyrecibido">Copiar texto para email</button></div>
@@ -525,7 +532,7 @@ ${[["tipo","Tipo"],["marca","Marca"],["modelo","Modelo"],["serie","N° de serie"
 <div class="field full" style="grid-column:1/-1"><label for="o-falla">Falla reportada por el cliente</label><textarea id="o-falla" data-of2="falla">${esc(o.falla)}</textarea></div>
 <div class="field full" style="grid-column:1/-1"><label for="o-diagnostico">Diagnóstico del técnico</label><textarea id="o-diagnostico" data-of2="diagnostico" placeholder="Qué encontró el técnico al revisar el equipo">${esc(o.diagnostico)}</textarea></div>
 </div>
-<div class="field"><label>Fotos del equipo</label><div class="photos">${(o.fotos||[]).map(f=>`<a href="${esc(f.url)}" target="_blank" rel="noopener"><img src="${esc(f.url)}" alt="Foto del equipo"></a>`).join("")}
+<div class="field"><label>Fotos del equipo</label><div class="photos">${(o.fotos||[]).map((f,i)=>fotoTile(f,i,96)).join("")}
 ${assets?`<label for="o-foto">${m_upl===o.id?"Subiendo…":"+ Agregar foto"}<input id="o-foto" type="file" accept="image/*" capture="environment" multiple data-foto="${o.id}"></label>`:`<span class="muted" style="font-size:.85rem">Para subir fotos necesitas acceso de edición.</span>`}</div></div></section>
 <section class="panel"><div class="panel-h"><h3>Repuestos</h3><button class="btn sm" data-act="addrep">${svg("plus")}Agregar repuesto</button></div>
 ${reps.length?`<div class="tscroll"><table><thead><tr><th>Repuesto</th><th>Código</th><th style="width:80px">Cant.</th><th style="width:130px">Precio neto</th><th style="width:150px">Estado</th><th class="num">Subtotal</th><th></th></tr></thead><tbody>
@@ -540,7 +547,8 @@ ${gar?`<section class="panel"><div class="panel-h"><h3>Garantía</h3>${garRow(ga
 <section class="panel"><h3>Historial</h3><div class="list">${(o.historial||[]).slice().reverse().map(h=>`<div class="row" style="cursor:default;grid-template-columns:auto 1fr"><span class="mono muted">${fmtD(h.f)} ${String(h.f).slice(11,16)}</span><div>${pill(h.e)}</div></div>`).join("")}</div></section>
 <div class="actions"><button class="btn danger" data-act="delord">Eliminar orden</button>${m_conf==="ord"?`<span>¿Seguro? Esto no se puede deshacer.</span><button class="btn danger" data-act="delordok">Sí, eliminar</button><button class="btn" data-act="noconf">No</button>`:""}</div>`,
 `${esc(c?.nombre||"")} · ingreso ${fmtD(o.fechaIngreso)}`)}
-let m_conf=null,m_upl=null;
+let m_conf=null,m_upl=null,m_delfoto=null;
+function fotoTile(f,i,sz){return `<span class="ph" style="width:${sz}px;height:${sz}px"><a href="${esc(f.url)}" target="_blank" rel="noopener" style="width:${sz}px;height:${sz}px"><img src="${esc(f.url)}" alt="Foto del equipo"></a>${m_delfoto===f.url?`<span class="phc"><button class="btn sm danger" data-delfotook="${i}">Eliminar</button><button class="btn sm" data-act="noconf">No</button></span>`:`<button class="phx" data-delfoto="${i}" aria-label="Eliminar foto" title="Eliminar foto">×</button>`}</span>`}
 
 function mCliente(c){const os=c?S.ordenes.filter(o=>o.clienteId===c.id).sort((a,b)=>(b.numero||0)-(a.numero||0)):[];const gs=c?S.garantias.filter(g=>g.clienteId===c.id):[];
   return shell(c?esc(c.nombre):"Nuevo cliente",`
@@ -663,6 +671,8 @@ document.addEventListener("click",async e=>{const t=e.target.closest("button,a,[
   if(d.cli){m_conf=null;S.q="";openModal({t:"cli",id:d.cli});return}
   if(d.gar){m_conf=null;openModal({t:"gar",id:d.gar});return}
   if(d.aviso){const oo=orden(d.aviso);if(oo&&!oo.avisoRecibido)upd("ordenes",oo.id,{avisoRecibido:new Date().toISOString()});return}
+  if(d.delfoto&&o){const f=(o.fotos||[])[Number(d.delfoto)];if(f){m_delfoto=f.url;renderModal()}return}
+  if(d.delfotook&&o){const f=(o.fotos||[])[Number(d.delfotook)];m_delfoto=null;if(!f)return;const rest=(o.fotos||[]).filter(x=>x.url!==f.url);await upd("ordenes",o.id,{fotos:rest});if(assets&&assets.delete&&f.id)assets.delete(f.id).catch(()=>{});toast("Foto eliminada");return}
   if(d.of){S.ordFilter=d.of;render();return}
   if(d.gt){S.garTab=d.gt;render();return}
   if(d.rt){S.repTab=d.rt;render();return}
@@ -692,7 +702,7 @@ document.addEventListener("click",async e=>{const t=e.target.closest("button,a,[
    case "delord":m_conf="ord";renderModal();break;
    case "delcli":m_conf="cli";renderModal();break;
    case "delgar":m_conf="gar";renderModal();break;
-   case "noconf":m_conf=null;renderModal();break;
+   case "noconf":m_conf=null;m_delfoto=null;renderModal();break;
    case "delordok":if(o){m_conf=null;const id=o.id;closeModal();await W(()=>db.collection("ordenes").doc(id).delete(),"Orden eliminada")}break;
    case "delcliok":{m_conf=null;const id=S.modal.id;closeModal();await W(()=>db.collection("clientes").doc(id).delete(),"Cliente eliminado");break}
    case "delgarok":{m_conf=null;const id=S.modal.id;closeModal();await W(()=>db.collection("garantias").doc(id).delete(),"Garantía eliminada");break}
