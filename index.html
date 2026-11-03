@@ -473,9 +473,13 @@ document.getElementById("modal").addEventListener("focusout",()=>setTimeout(()=>
 function shell(title,body,sub=""){return `<div class="modal-bg" data-bg="1"><div class="modal" role="dialog" aria-modal="true" aria-label="${esc(title)}"><div class="modal-h"><h2>${title}${sub?`<div style="font-family:var(--f-body);font-size:.85rem;font-weight:400;opacity:.75">${sub}</div>`:""}</h2><button class="x" data-act="cerrar" aria-label="Cerrar">×</button></div><div class="modal-b">${body}</div></div></div>`}
 function renderModal(){const m=S.modal,el=document.getElementById("modal");if(!m){el.innerHTML="";return}
   const sc=el.querySelector(".modal")?.scrollTop||0;
+  const keep=m.t==="nuevo"?[...el.querySelectorAll("input,select,textarea")].filter(x=>x.id&&x.id!=="cq"||x.name==="acc").map(x=>[x.id||("acc:"+x.value),x.type==="checkbox"?x.checked:x.value]):[];
   let h="";
   if(m.t==="nuevo")h=mNuevo();else if(m.t==="ord"){if(!orden(m.id)){closeModal();return}h=mOrden(orden(m.id))}else if(m.t==="cli"){h=mCliente(m.id?cliente(m.id):null)}else if(m.t==="gar")h=mGar(m.id?S.garantias.find(g=>g.id===m.id):null);
-  el.innerHTML=h;document.body.style.overflow="hidden";const md=el.querySelector(".modal");if(md)md.scrollTop=sc}
+  el.innerHTML=h;document.body.style.overflow="hidden";const md=el.querySelector(".modal");if(md)md.scrollTop=sc;
+  keep.forEach(([k,v])=>{const x=k.startsWith("acc:")?el.querySelector(`input[name=acc][value="${CSS.escape(k.slice(4))}"]`):document.getElementById(k);if(!x)return;if(x.type==="checkbox")x.checked=v;else x.value=v});
+  tipoOtro()}
+function tipoOtro(){const s=document.getElementById("e-tipo"),w=document.getElementById("e-tipo-otro-w");if(s&&w){w.hidden=s.value!=="Otro"}}
 
 function cliFields(c={},p="c"){return `
 <div class="field full" style="grid-column:1/-1"><label for="${p}-nombre">Nombre o razón social *</label><input id="${p}-nombre" value="${esc(c.nombre)}" required></div>
@@ -501,6 +505,7 @@ m.nuevoCli?`<div class="form">${cliFields({nombre:m.cq&&!/\d/.test(m.cq)?m.cq:""
 </section>
 <section class="panel"><h3>2 · Equipo</h3><div class="form">
 <div class="field"><label for="e-tipo">Tipo de equipo *</label><select id="e-tipo">${TIPOS.map(t=>`<option>${t}</option>`).join("")}</select></div>
+<div class="field" id="e-tipo-otro-w" hidden><label for="e-tipo-otro">¿Qué equipo es? *</label><input id="e-tipo-otro" placeholder="Ej: Cortadora de pasto, bomba de agua…"></div>
 <div class="field"><label for="e-marca">Marca</label><input id="e-marca" list="marcas" placeholder="Makita, Bosch, DeWalt…"></div>
 <div class="field"><label for="e-modelo">Modelo</label><input id="e-modelo"></div>
 <div class="field"><label for="e-serie">N° de serie</label><input id="e-serie" class="mono"></div>
@@ -590,10 +595,11 @@ async function guardarIngreso(){const m=S.modal;const err=document.getElementByI
     if(c.rut){const dup=S.clientes.find(x=>norm(x.rut)===norm(c.rut));if(dup){err.textContent=`Ya existe un cliente con ese RUT: ${dup.nombre}. Búscalo y elígelo.`;return}}
     try{const ref=await db.collection("clientes").add({...c,creado:new Date().toISOString()});cid=ref.id}catch(e){err.textContent="No se pudo crear el cliente. Intenta de nuevo.";return}}
   const g=id=>document.getElementById(id).value.trim();
+  if(g("e-tipo")==="Otro"&&!g("e-tipo-otro")){err.textContent="Escribe qué equipo es en el campo «¿Qué equipo es?».";document.getElementById("e-tipo-otro").focus();return}
   if(!g("e-falla")){err.textContent="Describe la falla que reporta el cliente.";return}
   const acc=[...document.querySelectorAll('input[name=acc]:checked')].map(x=>x.value);if(g("e-acc-otro"))acc.push(g("e-acc-otro"));
   const numero=Math.max(0,...S.ordenes.map(o=>o.numero||0))+1;const now=new Date().toISOString();
-  const data={numero,clienteId:cid,clienteNombre:cliente(cid)?.nombre||readCli("n").nombre,tipo:g("e-tipo"),marca:g("e-marca"),modelo:g("e-modelo"),serie:g("e-serie"),accesorios:acc.join(", "),falla:g("e-falla"),diagnostico:"",fechaIngreso:g("e-fecha")||today(),fechaEstimada:g("e-est"),tecnico:g("e-tec"),estado:"diag",repuestos:[],manoObra:0,presupuestoEstado:"Pendiente",garantiaDias:90,fotos:[],historial:[{e:"diag",f:now}],creado:now};
+  const data={numero,clienteId:cid,clienteNombre:cliente(cid)?.nombre||readCli("n").nombre,tipo:g("e-tipo")==="Otro"?g("e-tipo-otro"):g("e-tipo"),marca:g("e-marca"),modelo:g("e-modelo"),serie:g("e-serie"),accesorios:acc.join(", "),falla:g("e-falla"),diagnostico:"",fechaIngreso:g("e-fecha")||today(),fechaEstimada:g("e-est"),tecnico:g("e-tec"),estado:"diag",repuestos:[],manoObra:0,presupuestoEstado:"Pendiente",garantiaDias:90,fotos:[],historial:[{e:"diag",f:now}],creado:now};
   try{const ref=await db.collection("ordenes").add(data);toast(`${otNum(numero)} registrada`);S.modal={t:"ord",id:ref.id};S.ordenes.push({id:ref.id,...data});renderModal()}catch(e){err.textContent="No se pudo guardar el ingreso. Revisa tu conexión e intenta de nuevo."}}
 
 async function cambiarEstado(o,k,extra={}){if(o.estado===k)return;const now=new Date().toISOString();const patch={estado:k,historial:[...(o.historial||[]),{e:k,f:now}],...extra};
@@ -737,6 +743,7 @@ document.addEventListener("input",e=>{const t=e.target;
   else if(t.id==="cq"){S.modal.cq=t.value;renderModal();const f=document.getElementById("cq");f.focus();f.setSelectionRange(f.value.length,f.value.length)}
   else if(/-rut$/.test(t.id)){const er=document.getElementById(t.id.replace("rut","ruterr"));if(er)er.textContent=t.value.replace(/[^0-9kK]/g,"").length>=7&&!rutOk(t.value)?"Dígito verificador no coincide":""}});
 document.addEventListener("change",e=>{const t=e.target,o=S.modal?.t==="ord"?orden(S.modal.id):null;
+  if(t.id==="e-tipo"){tipoOtro();if(t.value==="Otro")setTimeout(()=>document.getElementById("e-tipo-otro")?.focus(),50);return}
   if(/-rut$/.test(t.id)&&t.value)t.value=fmtRut(t.value);
   if(!o)return;
   if(t.dataset.of2){const k=t.dataset.of2;let v=t.value;if(k==="manoObra"||k==="garantiaDias")v=Number(v)||0;if(o[k]!==v)upd("ordenes",o.id,{[k]:v})}
