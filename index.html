@@ -565,7 +565,8 @@ ${reps.map((r,i)=>`<tr><td><input id="r${i}-nombre" data-rep="${i}|nombre" value
 <div class="form"><div class="field"><label for="o-manoObra">Valor ${servNom(o).toLowerCase()} (neto)</label><input id="o-manoObra" type="number" min="0" step="1000" data-of2="manoObra" value="${esc(o.manoObra||0)}"></div>
 <div class="field"><label for="o-garantiaDias">Días de garantía de la reparación</label><input id="o-garantiaDias" type="number" min="0" data-of2="garantiaDias" value="${esc(o.garantiaDias??90)}"></div></div>
 <div class="totals"><span>Repuestos</span><span>${clp(T.rep)}</span><span>${servNom(o)}</span><span>${clp(T.mo)}</span>${o.esGarantia?`<span>Descuento garantía</span><span>−${clp(T.rep+T.mo)}</span>`:""}<span>Neto</span><span>${clp(T.neto)}</span><span>IVA 19%</span><span>${clp(T.iva)}</span><span class="tt">Total</span><span class="tt">${clp(T.total)}</span></div>
-<div class="actions"><button class="btn pri" data-act="pdf">${svg("doc")}Descargar PDF</button><a class="btn wa" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgPresu(o))}" target="_blank" rel="noopener">${svg("wa")}Enviar por WhatsApp</a><button class="btn" data-act="copymail">Copiar texto para email</button></div>
+${o.diagnostico?`<div class="notice" style="border-left:4px solid var(--accent)"><b>Diagnóstico del técnico</b> (sale en el PDF y en WhatsApp):<br>${esc(o.diagnostico)}</div>`:`<p class="err" style="margin:0">Falta el diagnóstico del técnico: escríbelo en el recuadro «Diagnóstico del técnico» de arriba para que salga en el presupuesto.</p>`}
+<div class="actions"><button class="btn pri" data-act="pdf">${svg("doc")}Descargar PDF</button><a class="btn wa" data-presuwa="1" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgPresu(o))}" target="_blank" rel="noopener">${svg("wa")}Enviar por WhatsApp</a><button class="btn" data-act="copymail">Copiar texto para email</button></div>
 ${c?.email?`<p class="muted" style="margin:0">Email del cliente: <span class="mono" style="user-select:all">${esc(c.email)}</span>. Adjunta el PDF descargado al correo o al chat de WhatsApp.</p>`:`<p class="muted" style="margin:0">Adjunta el PDF descargado al chat de WhatsApp o al correo.</p>`}</section>
 ${gar?`<section class="panel"><div class="panel-h"><h3>Garantía</h3>${garRow(gar)}</div></section>`:""}
 <section class="panel"><h3>Historial</h3><div class="list">${(o.historial||[]).slice().reverse().map(h=>`<div class="row" style="cursor:default;grid-template-columns:auto 1fr"><span class="mono muted">${fmtD(h.f)} ${String(h.f).slice(11,16)}</span><div>${pill(h.e)}</div></div>`).join("")}</div></section>
@@ -657,9 +658,12 @@ function msgListo(o){const c=cliente(o.clienteId);const T=totales(o);const eq=[o
   return `Hola ${c?.nombre||""}, le saludamos de Mecano Service.\n\nLe informamos que su equipo *${eq}* (orden ${otNum(o.numero)}) ya está *listo para retiro*.\n`+
   (o.esGarantia?`\nLa reparación fue cubierta por garantía, sin costo para usted.\n`:T.total>0?`\nTotal a pagar: *${clp(T.total)}* (IVA incluido).\n`:"")+
   `\nLo esperamos. Saludos, Mecano Service`}
+function fresco(o){const v=id=>{const e=document.getElementById(id);return e?e.value:undefined};
+  return {...o,diagnostico:(v("o-diagnostico")??o.diagnostico)||"",falla:(v("o-falla")??o.falla)||"",manoObra:Number(v("o-manoObra")??o.manoObra)||0,
+    repuestos:(o.repuestos||[]).map((r,i)=>({...r,nombre:v(`r${i}-nombre`)??r.nombre,codigo:v(`r${i}-codigo`)??r.codigo,cantidad:Number(v(`r${i}-cant`)??r.cantidad)||0,precio:Number(v(`r${i}-precio`)??r.precio)||0}))}}
 function msgPresu(o){const c=cliente(o.clienteId);const T=totales(o);
   return `Hola ${c?.nombre||""}, le escribimos de Mecano Service por su equipo ${o.tipo} ${o.marca||""} ${o.modelo||""} (orden ${otNum(o.numero)}).\n\n`+
-  (o.diagnostico?`Diagnóstico: ${o.diagnostico}\n\n`:"")+
+  (o.falla?`Falla reportada: ${o.falla}\n`:"")+(o.diagnostico?`*Diagnóstico del técnico:* ${o.diagnostico}\n\n`:"\n")+
   ((o.repuestos||[]).length?`Repuestos:\n${o.repuestos.map(r=>`• ${r.cantidad} x ${r.nombre}: ${clp(r.cantidad*r.precio)}`).join("\n")}\n`:"")+
   `${servNom(o)}: ${clp(T.mo)}\nNeto: ${clp(T.neto)}\nIVA 19%: ${clp(T.iva)}\nTOTAL: ${clp(T.total)}\n\n`+(o.esGarantia?"Esta reparación está cubierta por garantía, sin costo para usted.\n\n":"¿Nos confirma si aprueba el presupuesto para continuar con la reparación?\n\n")+`Saludos, Mecano Service`}
 
@@ -718,7 +722,9 @@ async function pdf(o){if(!window.jspdf){toast("No se pudo cargar el generador de
   blk("Equipo",110,[`${o.tipo} ${o.marca||""}`,o.modelo&&"Modelo "+o.modelo,o.serie&&"N° serie "+o.serie,"Ingreso "+fmtD(o.fechaIngreso),o.accesorios&&"Accesorios: "+o.accesorios]);
   y+=36;
   const para=(t,txt)=>{if(!txt)return;d.setFont("helvetica","bold");d.setFontSize(9);d.setTextColor(...gray);d.text(t.toUpperCase(),15,y);d.setFont("helvetica","normal");d.setFontSize(10);d.setTextColor(28,39,49);const L=d.splitTextToSize(txt,180);d.text(L,15,y+6);y+=8+L.length*5};
-  para("Falla reportada",o.falla);para("Diagnóstico",o.diagnostico);
+  para("Falla reportada por el cliente",o.falla);
+  if(o.diagnostico){const L=d.splitTextToSize(o.diagnostico,172);const h=11+L.length*5;d.setFillColor(227,240,250);d.setDrawColor(26,120,189);d.setLineWidth(.4);d.roundedRect(15,y-4,180,h,2,2,"FD");
+    d.setFont("helvetica","bold");d.setFontSize(9);d.setTextColor(26,120,189);d.text("DIAGNÓSTICO DEL TÉCNICO",19,y+1.5);d.setFont("helvetica","normal");d.setFontSize(10);d.setTextColor(28,39,49);d.text(L,19,y+7.5);y+=h+4}
   y+=2;d.setFillColor(43,55,66);d.rect(15,y,180,8,"F");d.setTextColor(255,255,255);d.setFont("helvetica","bold");d.setFontSize(9);
   d.text("DESCRIPCIÓN",18,y+5.5);d.text("CÓDIGO",105,y+5.5);d.text("CANT.",135,y+5.5);d.text("P. UNIT.",160,y+5.5,{align:"right"});d.text("SUBTOTAL",192,y+5.5,{align:"right"});y+=8;
   d.setFont("helvetica","normal");d.setTextColor(28,39,49);d.setFontSize(10);
@@ -745,6 +751,7 @@ async function excel(){if(!window.XLSX){toast("No se pudo cargar el exportador. 
 
 /* ---------- eventos ---------- */
 document.addEventListener("click",async e=>{const t=e.target.closest("button,a,[data-bg]");if(!t)return;
+  if(t.dataset.presuwa&&S.modal?.t==="ord"){const oo=orden(S.modal.id);if(oo)t.href=`https://wa.me/${waNum(cliente(oo.clienteId))}?text=${encodeURIComponent(msgPresu(fresco(oo)))}`;if(document.activeElement&&document.activeElement!==t)document.activeElement.blur();return}
   if(t.dataset.bg&&e.target===t){closeModal();return}
   const d=t.dataset,a=d.act,o=S.modal?.t==="ord"?orden(S.modal.id):null;
   if(d.go){S[d.go==="ordenes"?"ordFilter":"garTab"]=d.f;location.hash=d.go;render();return}
@@ -779,12 +786,12 @@ document.addEventListener("click",async e=>{const t=e.target.closest("button,a,[
      const dup=c.rut&&S.clientes.find(x=>norm(x.rut)===norm(c.rut)&&x.id!==S.modal.id);if(dup){er.textContent="Ya existe otro cliente con ese RUT: "+dup.nombre;return}
      if(S.modal.id){await upd("clientes",S.modal.id,c);toast("Cliente actualizado")}else{try{const r=await db.collection("clientes").add({...c,creado:new Date().toISOString()});toast("Cliente creado");S.modal={t:"cli",id:r.id};S.clientes.push({id:r.id,...c});renderModal()}catch(x){er.textContent="No se pudo guardar. Intenta de nuevo."}}break}
    case "addrep":if(o)upd("ordenes",o.id,{repuestos:[...(o.repuestos||[]),{nombre:"",codigo:"",cantidad:1,precio:0,estado:"Por pedir"}]});break;
-   case "pdf":if(o)pdf(o);break;
+   case "pdf":if(o){const f=fresco(o);document.activeElement?.blur();pdf(f)}break;
    case "comprobante":if(o){const d=comprobanteDoc(o);if(d)guardarPdf(d,nombreDoc("Comprobante",o))}break;
    case "compcomp":if(o){const d=comprobanteDoc(o);if(!d)break;const nm=nombreDoc("Comprobante",o);if(!compartirPdf(d,nm,`Comprobante de ingreso ${grupoDe(o).map(x=>otNum(x.numero)).join(", ")} - Mecano Service`)){await guardarPdf(d,nm);toast("Se descargó el PDF: adjúntalo en el chat de WhatsApp del cliente.")}}break;
    case "etiqueta":if(o){const d=etiquetaDoc(o);if(d)guardarPdf(d,nombreDoc("Etiqueta",o))}break;
    case "excel":excel();break;
-   case "copymail":if(o){const txt=msgPresu(o);try{await navigator.clipboard.writeText(txt);toast("Texto copiado. Pégalo en tu correo.")}catch(x){const ta=document.createElement("textarea");ta.value=txt;ta.style.width="100%";ta.rows=10;t.after(ta);ta.select();toast("Selecciona y copia el texto")}}break;
+   case "copymail":if(o){const txt=msgPresu(fresco(o));try{await navigator.clipboard.writeText(txt);toast("Texto copiado. Pégalo en tu correo.")}catch(x){const ta=document.createElement("textarea");ta.value=txt;ta.style.width="100%";ta.rows=10;t.after(ta);ta.select();toast("Selecciona y copia el texto")}}break;
    case "avisofoto":if(o)avisoConFoto(o);break;
    case "copylisto":if(o){const txt=msgListo(o);try{await navigator.clipboard.writeText(txt);toast("Texto copiado. Pégalo en tu correo.")}catch(x){toast("No se pudo copiar el texto.")}}break;
    case "copyrecibido":if(o){const txt=msgRecibido(o);try{await navigator.clipboard.writeText(txt);toast("Texto copiado. Pégalo en tu correo.")}catch(x){const ta=document.createElement("textarea");ta.value=txt;ta.style.width="100%";ta.rows=10;t.after(ta);ta.select();toast("Selecciona y copia el texto")}}break;
