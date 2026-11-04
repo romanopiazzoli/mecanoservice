@@ -137,6 +137,12 @@ td input,td select{padding:7px 8px}
 .photos a{border-style:solid}
 .photos img{width:100%;height:100%;object-fit:cover}
 .photos input{display:none}
+.firma-ov{position:fixed;inset:0;z-index:120;background:rgba(10,16,22,.72);display:flex;align-items:center;justify-content:center;padding:16px}
+.firma-box{background:var(--bg);border-radius:14px;padding:16px;width:min(640px,100%);max-height:100%;overflow:auto;display:flex;flex-direction:column;gap:12px;box-shadow:0 20px 50px rgba(0,0,0,.4)}
+.firma-pad{position:relative;height:220px;background:#fff;border:2px dashed var(--steel);border-radius:10px;touch-action:none;overflow:hidden}
+.firma-pad canvas{display:block;touch-action:none}
+.firma-pad::after{content:"";position:absolute;left:24px;right:24px;bottom:48px;border-bottom:1.5px solid #c9d2da;pointer-events:none}
+.firma-hint{position:absolute;left:50%;top:40%;transform:translate(-50%,-50%);color:#9aa9b5;pointer-events:none;font-size:1.1rem}
 .ph{position:relative;display:inline-flex;flex:none}
 .ph a{display:block;border-radius:8px;overflow:hidden;border:1px solid var(--line)}
 .ph img{width:100%;height:100%;object-fit:cover}
@@ -542,6 +548,10 @@ ${(o.fotos||[]).length?`<div class="photos">${o.fotos.slice(0,4).map((f,i)=>foto
 ${(o.fotos||[]).length?`<button class="btn wa" data-act="avisofoto">${svg("wa")}Enviar aviso con foto</button><a class="btn" data-aviso="${o.id}" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgRecibido(o))}" target="_blank" rel="noopener">Solo texto</a>`:`<a class="btn wa" data-aviso="${o.id}" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgRecibido(o))}" target="_blank" rel="noopener">${svg("wa")}Avisar recepción por WhatsApp</a>`}
 <button class="btn" data-act="copyrecibido">Copiar texto para email</button></div>
 ${waNum(c)?"":`<p class="err" style="margin:0">Este cliente no tiene teléfono ni WhatsApp. Agrégalo en su ficha para enviar el aviso directo a su chat.</p>`}</section>`}
+${["listo","entr"].includes(o.estado)||o.entrega?`<section class="panel" style="border-top:4px solid var(--s-listo)"><div class="panel-h"><h3>Entrega al cliente</h3>${o.entrega?`<span class="pill" style="--c:var(--s-listo)">Firmado</span>`:""}</div>
+${o.entrega?`<div style="display:flex;gap:12px;align-items:center;flex-wrap:wrap"><img src="${o.entrega.firma}" alt="Firma del cliente" style="width:180px;height:60px;object-fit:contain;background:#fff;border:1px solid var(--line);border-radius:8px"><div><b>${esc(o.entrega.nombre||"")}</b>${o.entrega.rut?` · <span class="mono">${esc(o.entrega.rut)}</span>`:""}<br><span class="muted">Retiró el ${fechaHora(o.entrega.fecha)}</span></div></div>
+<div class="actions"><button class="btn" data-act="compentrega">${svg("doc")}Comprobante de entrega</button><button class="btn wa" data-act="envientrega">${svg("wa")}Enviar comprobante</button><button class="btn sm" data-act="firmar">Firmar de nuevo</button></div>`
+:`<p class="muted" style="margin:0">Cuando el cliente retire el equipo, pídele que firme con el dedo en la pantalla. La orden pasa a <b>Entregado</b> y se genera el comprobante de entrega con su firma.</p><div class="actions"><button class="btn pri big" data-act="firmar">Firmar entrega</button></div>`}</section>`:""}
 <section class="panel"><div class="panel-h"><h3>Documentos del ingreso</h3></div>
 <p class="muted" style="margin:0">${grupoDe(o).length>1?`Incluyen las ${grupoDe(o).length} herramientas de este ingreso.`:"Comprobante para el cliente y etiqueta para pegar en el equipo."}</p>
 <div class="actions"><button class="btn" data-act="comprobante">${svg("doc")}Comprobante de ingreso</button><button class="btn wa" data-act="compcomp">${svg("wa")}Enviar comprobante</button><button class="btn" data-act="etiqueta"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="6.5" height="6.5"/><rect x="14" y="3.5" width="6.5" height="6.5"/><rect x="3.5" y="14" width="6.5" height="6.5"/><path d="M14 14h3v3h-3zM17.5 17.5h3v3M14 20.5h2"/></g></svg>Etiqueta con QR</button></div></section>
@@ -707,6 +717,67 @@ function etiquetaDoc(o){const J=jsPdfOk();if(!J)return null;if(!window.qrcode){t
     for(let r=0;r<n;r++)for(let k=0;k<n;k++)if(qr.isDark(r,k))d.rect(x0+k*cell,y0+r*cell,cell+.03,cell+.03,"F");
     d.setFontSize(5.5);d.setTextColor(95,111,124);d.text("Escanea para ver la orden",55,32.5,{align:"center"})});
   return d}
+const fechaHora=iso=>{try{return new Date(iso).toLocaleString("es-CL",{day:"2-digit",month:"2-digit",year:"numeric",hour:"2-digit",minute:"2-digit"})}catch(e){return fmtD(iso)}};
+const fechaLocal=iso=>{const t=new Date(iso);return `${t.getFullYear()}-${String(t.getMonth()+1).padStart(2,"0")}-${String(t.getDate()).padStart(2,"0")}`};
+function entregaDoc(o){const J=jsPdfOk();if(!J)return null;const c=cliente(o.clienteId)||{};const T=totales(o);const e=o.entrega||{};const d=new J({unit:"mm",format:"a4"});
+  const gray=[74,91,105],blue=[26,120,189],ink=[28,39,49],green=[31,138,76];
+  d.addImage(LOGO,"PNG",15,10,22,22);d.setFont("helvetica","bold");d.setFontSize(20);d.setTextColor(...ink);d.text("Mecano Service",42,20);
+  d.setFont("helvetica","normal");d.setFontSize(10);d.setTextColor(...gray);d.text("Servicio técnico de herramientas eléctricas y generadores",42,26);
+  d.setFont("helvetica","bold");d.setFontSize(13);d.setTextColor(...green);d.text("COMPROBANTE DE ENTREGA",195,18,{align:"right"});
+  d.setFontSize(11);d.setTextColor(...ink);d.text(otNum(o.numero),195,25,{align:"right"});
+  d.setFont("helvetica","normal");d.setFontSize(9);d.text("Entregado: "+(e.fecha?fechaHora(e.fecha):fmtD(today())),195,30,{align:"right"});
+  d.setDrawColor(200,207,214);d.line(15,36,195,36);let y=45;
+  const lab=(t,x,yy)=>{d.setFont("helvetica","bold");d.setFontSize(8.5);d.setTextColor(...gray);d.text(t.toUpperCase(),x,yy)};
+  const val=(t,x,yy,w)=>{d.setFont("helvetica","normal");d.setFontSize(10);d.setTextColor(...ink);const L=d.splitTextToSize(String(t||"-"),w);d.text(L,x,yy);return L.length};
+  lab("Cliente",15,y);val([c.nombre||o.clienteNombre,c.rut&&"RUT "+c.rut].filter(Boolean).join("   "),15,y+5,90);
+  lab("Contacto",110,y);val([c.telefono||c.whatsapp,c.email].filter(Boolean).join("   "),110,y+5,85);y+=13;
+  d.setFillColor(238,241,244);d.roundedRect(15,y,180,8.5,1.5,1.5,"F");d.setFont("helvetica","bold");d.setFontSize(10.5);d.setTextColor(...ink);
+  d.text([o.tipo,o.marca,o.modelo].filter(Boolean).join(" "),18,y+5.8);d.setTextColor(...blue);d.text(otNum(o.numero),192,y+5.8,{align:"right"});y+=14;
+  lab("N° de serie",18,y);val(o.serie,18,y+5,48);lab("Ingreso",70,y);val(fmtD(o.fechaIngreso),70,y+5,30);lab("Accesorios devueltos",105,y);const na=val(o.accesorios||"Sin accesorios",105,y+5,88);y+=7+Math.max(1,na)*4.6;
+  lab("Falla reportada",18,y);const nf=val(o.falla,18,y+5,174);y+=7+nf*4.6;
+  if(o.diagnostico){lab("Trabajo / diagnóstico del técnico",18,y);const nd=val(o.diagnostico,18,y+5,174);y+=7+nd*4.6}
+  y+=3;d.setFillColor(43,55,66);d.rect(15,y,180,8,"F");d.setTextColor(255,255,255);d.setFont("helvetica","bold");d.setFontSize(9);
+  d.text("DETALLE",18,y+5.5);d.text("CANT.",135,y+5.5);d.text("P. UNIT.",160,y+5.5,{align:"right"});d.text("SUBTOTAL",192,y+5.5,{align:"right"});y+=8;
+  d.setFont("helvetica","normal");d.setFontSize(10);d.setTextColor(...ink);
+  const rows=[...(o.repuestos||[]).map(r=>[r.nombre,r.cantidad,r.precio,(r.cantidad||0)*(r.precio||0)]),[servNom(o),1,T.mo,T.mo]];
+  rows.forEach((r,i)=>{if(y>250){d.addPage();y=20}if(i%2){d.setFillColor(242,245,247);d.rect(15,y,180,7,"F")}d.text(d.splitTextToSize(String(r[0]||""),110)[0]||"",18,y+5);d.text(String(r[1]),138,y+5);d.text(clp(r[2]),160,y+5,{align:"right"});d.text(clp(r[3]),192,y+5,{align:"right"});y+=7});
+  y+=5;if(o.esGarantia){d.text("Reparación cubierta por garantía",150,y,{align:"right"});y+=6}
+  [["Neto",T.neto],["IVA 19%",T.iva]].forEach(([n,v])=>{d.text(n,150,y);d.text(clp(v),192,y,{align:"right"});y+=6});
+  d.setFont("helvetica","bold");d.setFontSize(13);d.setTextColor(...blue);d.text("TOTAL",150,y+1);d.text(clp(T.total),192,y+1,{align:"right"});y+=10;
+  const gd=Number(o.garantiaDias??90)||0;
+  if(!o.esGarantia&&gd>0){const g=S.garantias.find(x=>x.ordenId===o.id);const vence=g?g.vence:addDays(e.fecha?fechaLocal(e.fecha):today(),gd);
+    if(y>235){d.addPage();y=20}
+    d.setFillColor(232,245,237);d.setDrawColor(...green);d.setLineWidth(.4);d.roundedRect(15,y,180,15,2,2,"FD");d.setFont("helvetica","bold");d.setFontSize(10);d.setTextColor(...green);
+    d.text(`GARANTÍA DE REPARACIÓN: ${gd} DÍAS`,19,y+6);d.setFont("helvetica","normal");d.setFontSize(9.5);d.setTextColor(...ink);d.text(`Válida hasta el ${fmtD(vence)}. Cubre el trabajo realizado y los repuestos cambiados.`,19,y+11.5);y+=21}
+  if(y>232){d.addPage();y=20}
+  d.setFont("helvetica","normal");d.setFontSize(8.5);d.setTextColor(...gray);
+  ["El cliente declara recibir conforme el equipo y los accesorios detallados.","La garantía no cubre mal uso, golpes, humedad, sobrecarga ni intervención de terceros.","Para hacer uso de la garantía presente este comprobante o indique su número de orden."].forEach(t=>{const L=d.splitTextToSize("- "+t,180);d.text(L,15,y);y+=L.length*4});
+  y=Math.max(y+26,258);if(y>282){d.addPage();y=50}
+  if(e.firma){try{d.addImage(e.firma,"JPEG",25,y-22,60,20)}catch(x){}}
+  d.setDrawColor(...gray);d.setLineWidth(.3);d.line(22,y,88,y);d.line(122,y,188,y);d.setFontSize(9);d.setTextColor(...gray);
+  d.text("Firma del cliente",55,y+5,{align:"center"});if(e.nombre)d.text(e.nombre+(e.rut?"  ·  "+e.rut:""),55,y+10,{align:"center"});
+  d.text("Entregado por Mecano Service",155,y+5,{align:"center"});
+  return d}
+function abrirFirma(o){const c=cliente(o.clienteId)||{};const ov=document.createElement("div");ov.className="firma-ov";
+  ov.innerHTML=`<div class="firma-box" role="dialog" aria-modal="true" aria-label="Firma de entrega"><h2>Firma de entrega · ${otNum(o.numero)}</h2><p class="muted" style="margin:0">${esc([o.tipo,o.marca,o.modelo].filter(Boolean).join(" "))}. El cliente firma con el dedo en el recuadro blanco.</p>
+<div class="form"><div class="field"><label for="f-nom">Nombre de quien retira</label><input id="f-nom" value="${esc(c.nombre||o.clienteNombre||"")}"></div><div class="field"><label for="f-rut">RUT (opcional)</label><input id="f-rut" class="mono" value="${esc(c.rut||"")}"></div></div>
+<div class="firma-pad"><canvas id="f-can"></canvas><span class="firma-hint">Firme aquí</span></div>
+<span class="err" id="f-err"></span>
+<div class="actions"><button class="btn pri big" id="f-ok">Guardar firma y entregar</button><button class="btn" id="f-clr">Borrar firma</button><button class="btn" id="f-x">Cancelar</button></div></div>`;
+  document.body.appendChild(ov);
+  const cv=ov.querySelector("#f-can"),pad=cv.parentElement,hint=ov.querySelector(".firma-hint");const dpr=window.devicePixelRatio||1;const W=pad.clientWidth,H=pad.clientHeight;
+  cv.width=W*dpr;cv.height=H*dpr;cv.style.width=W+"px";cv.style.height=H+"px";const x=cv.getContext("2d");x.scale(dpr,dpr);x.lineWidth=2.6;x.lineCap="round";x.lineJoin="round";x.strokeStyle=x.fillStyle="#0d1b2a";
+  let draw=false,n=0,last=null;const pos=e=>{const r=cv.getBoundingClientRect();return[e.clientX-r.left,e.clientY-r.top]};
+  cv.addEventListener("pointerdown",e=>{e.preventDefault();draw=true;last=pos(e);try{cv.setPointerCapture(e.pointerId)}catch(_){}hint.hidden=true;x.beginPath();x.arc(last[0],last[1],1.2,0,7);x.fill();n++});
+  cv.addEventListener("pointermove",e=>{if(!draw)return;e.preventDefault();const p=pos(e);x.beginPath();x.moveTo(last[0],last[1]);x.lineTo(p[0],p[1]);x.stroke();last=p;n++});
+  ["pointerup","pointercancel"].forEach(t=>cv.addEventListener(t,()=>{draw=false}));
+  ov.querySelector("#f-clr").onclick=()=>{x.clearRect(0,0,W,H);n=0;hint.hidden=false};
+  ov.querySelector("#f-x").onclick=()=>ov.remove();
+  ov.querySelector("#f-ok").onclick=async()=>{if(n<8){ov.querySelector("#f-err").textContent="Falta la firma del cliente en el recuadro.";return}
+    const out=document.createElement("canvas");out.width=900;out.height=Math.round(900*H/W);const ox=out.getContext("2d");ox.fillStyle="#fff";ox.fillRect(0,0,out.width,out.height);ox.drawImage(cv,0,0,out.width,out.height);
+    const rutv=ov.querySelector("#f-rut").value.trim();
+    const entrega={firma:out.toDataURL("image/jpeg",.8),nombre:ov.querySelector("#f-nom").value.trim(),rut:rutv?fmtRut(rutv):"",fecha:new Date().toISOString()};
+    ov.remove();if(o.estado!=="entr")await cambiarEstado(o,"entr",{entrega});else await upd("ordenes",o.id,{entrega});toast("Firma guardada: equipo entregado.")}}
 async function guardarPdf(d,name){const blob=d.output("blob");if(downloads){try{await downloads.save({filename:name,data:blob});toast("PDF listo")}catch(e){if(e?.code!=="declined")toast("No se pudo descargar el PDF.")}}}
 function compartirPdf(d,name,text){try{const f=new File([d.output("blob")],name,{type:"application/pdf"});if(navigator.canShare&&navigator.canShare({files:[f]})){toast("Elige WhatsApp y el chat del cliente.");navigator.share({files:[f],text}).catch(()=>{});return true}}catch(e){}return false}
 async function pdf(o){if(!window.jspdf){toast("No se pudo cargar el generador de PDF. Recarga la página.");return}
@@ -787,6 +858,9 @@ document.addEventListener("click",async e=>{const t=e.target.closest("button,a,[
      if(S.modal.id){await upd("clientes",S.modal.id,c);toast("Cliente actualizado")}else{try{const r=await db.collection("clientes").add({...c,creado:new Date().toISOString()});toast("Cliente creado");S.modal={t:"cli",id:r.id};S.clientes.push({id:r.id,...c});renderModal()}catch(x){er.textContent="No se pudo guardar. Intenta de nuevo."}}break}
    case "addrep":if(o)upd("ordenes",o.id,{repuestos:[...(o.repuestos||[]),{nombre:"",codigo:"",cantidad:1,precio:0,estado:"Por pedir"}]});break;
    case "pdf":if(o){const f=fresco(o);document.activeElement?.blur();pdf(f)}break;
+   case "firmar":if(o)abrirFirma(o);break;
+   case "compentrega":if(o){const d=entregaDoc(o);if(d)guardarPdf(d,`Entrega_${otNum(o.numero)}.pdf`)}break;
+   case "envientrega":if(o){const d=entregaDoc(o);if(!d)break;const nm=`Entrega_${otNum(o.numero)}.pdf`;if(!compartirPdf(d,nm,`Comprobante de entrega ${otNum(o.numero)} - Mecano Service`)){await guardarPdf(d,nm);toast("Se descargó el PDF: adjúntalo en el chat de WhatsApp del cliente.")}}break;
    case "comprobante":if(o){const d=comprobanteDoc(o);if(d)guardarPdf(d,nombreDoc("Comprobante",o))}break;
    case "compcomp":if(o){const d=comprobanteDoc(o);if(!d)break;const nm=nombreDoc("Comprobante",o);if(!compartirPdf(d,nm,`Comprobante de ingreso ${grupoDe(o).map(x=>otNum(x.numero)).join(", ")} - Mecano Service`)){await guardarPdf(d,nm);toast("Se descargó el PDF: adjúntalo en el chat de WhatsApp del cliente.")}}break;
    case "etiqueta":if(o){const d=etiquetaDoc(o);if(d)guardarPdf(d,nombreDoc("Etiqueta",o))}break;
