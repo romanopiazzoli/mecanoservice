@@ -19,6 +19,7 @@
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Barlow:wght@400;500;600&family=IBM+Plex+Mono:wght@500&display=swap">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <style>
 /* Layout: barra lateral gris acero (escritorio) / barra inferior (celular); contenido en tarjetas blancas sobre gris claro */
@@ -388,6 +389,7 @@ function header(title,extra=""){return `<div class="top"><img class="mlogo" src=
 ${extra}<button class="btn pri big fab-new" data-act="nuevo">${svg("plus")}Nuevo ingreso</button></div>`}
 
 function render(){
+  const hm=(location.hash||"").match(/^#ot-([A-Za-z0-9-]+)$/);if(hm&&S.loaded===7){history.replaceState(null,"","#ordenes");const oo=orden(hm[1]);if(oo)S.modal={t:"ord",id:oo.id};else toast("No se encontró esa orden.")}
   renderNav();const v=view();const el=document.getElementById("view");
   if(S.dbOk===false){el.innerHTML=header("Mecano Service")+`<div class="panel empty">${svg("box")}<b>No se pudo conectar con la base de datos.</b><span>Revisa tu conexión a internet y recarga la página.</span></div>`;return}
   if(S.err){el.innerHTML=header("Mecano Service")+`<div class="panel notice">${esc(S.err)}</div>`;return}
@@ -540,6 +542,9 @@ ${(o.fotos||[]).length?`<div class="photos">${o.fotos.slice(0,4).map((f,i)=>foto
 ${(o.fotos||[]).length?`<button class="btn wa" data-act="avisofoto">${svg("wa")}Enviar aviso con foto</button><a class="btn" data-aviso="${o.id}" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgRecibido(o))}" target="_blank" rel="noopener">Solo texto</a>`:`<a class="btn wa" data-aviso="${o.id}" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgRecibido(o))}" target="_blank" rel="noopener">${svg("wa")}Avisar recepción por WhatsApp</a>`}
 <button class="btn" data-act="copyrecibido">Copiar texto para email</button></div>
 ${waNum(c)?"":`<p class="err" style="margin:0">Este cliente no tiene teléfono ni WhatsApp. Agrégalo en su ficha para enviar el aviso directo a su chat.</p>`}</section>`}
+<section class="panel"><div class="panel-h"><h3>Documentos del ingreso</h3></div>
+<p class="muted" style="margin:0">${grupoDe(o).length>1?`Incluyen las ${grupoDe(o).length} herramientas de este ingreso.`:"Comprobante para el cliente y etiqueta para pegar en el equipo."}</p>
+<div class="actions"><button class="btn" data-act="comprobante">${svg("doc")}Comprobante de ingreso</button><button class="btn wa" data-act="compcomp">${svg("wa")}Enviar comprobante</button><button class="btn" data-act="etiqueta"><svg viewBox="0 0 24 24" aria-hidden="true"><g fill="none" stroke="currentColor" stroke-width="1.8"><rect x="3.5" y="3.5" width="6.5" height="6.5"/><rect x="14" y="3.5" width="6.5" height="6.5"/><rect x="3.5" y="14" width="6.5" height="6.5"/><path d="M14 14h3v3h-3zM17.5 17.5h3v3M14 20.5h2"/></g></svg>Etiqueta con QR</button></div></section>
 <section class="panel"><div class="panel-h"><h3>Cliente</h3>${c?`<button class="btn sm" data-cli="${c.id}">Ver ficha</button>`:""}</div>
 <div class="kv"><div><span>Nombre</span>${esc(c?.nombre||o.clienteNombre||"—")}</div><div><span>RUT</span><span class="mono" style="text-transform:none;letter-spacing:0;font-size:.92em;color:var(--ink)">${esc(c?.rut||"—")}</span></div><div><span>Teléfono</span>${esc(c?.telefono||"—")}</div><div><span>Email</span>${esc(c?.email||"—")}</div></div></section>
 <section class="panel"><h3>Equipo</h3><div class="form">
@@ -658,6 +663,48 @@ function msgPresu(o){const c=cliente(o.clienteId);const T=totales(o);
   ((o.repuestos||[]).length?`Repuestos:\n${o.repuestos.map(r=>`• ${r.cantidad} x ${r.nombre}: ${clp(r.cantidad*r.precio)}`).join("\n")}\n`:"")+
   `${servNom(o)}: ${clp(T.mo)}\nNeto: ${clp(T.neto)}\nIVA 19%: ${clp(T.iva)}\nTOTAL: ${clp(T.total)}\n\n`+(o.esGarantia?"Esta reparación está cubierta por garantía, sin costo para usted.\n\n":"¿Nos confirma si aprueba el presupuesto para continuar con la reparación?\n\n")+`Saludos, Mecano Service`}
 
+function jsPdfOk(){if(!window.jspdf){toast("No se pudo cargar el generador de PDF. Recarga la página.");return null}return window.jspdf.jsPDF}
+const otLink=x=>location.origin+location.pathname+"#ot-"+x.id;
+const nombreDoc=(pre,o)=>`${pre}_${grupoDe(o).map(x=>otNum(x.numero)).join("_")}.pdf`;
+function comprobanteDoc(o){const J=jsPdfOk();if(!J)return null;const G=grupoDe(o);const c=cliente(o.clienteId)||{};const d=new J({unit:"mm",format:"a4"});
+  const gray=[74,91,105],blue=[26,120,189],ink=[28,39,49];
+  d.addImage(LOGO,"PNG",15,10,22,22);d.setFont("helvetica","bold");d.setFontSize(20);d.setTextColor(...ink);d.text("Mecano Service",42,20);
+  d.setFont("helvetica","normal");d.setFontSize(10);d.setTextColor(...gray);d.text("Servicio técnico de herramientas eléctricas y generadores",42,26);
+  d.setFont("helvetica","bold");d.setFontSize(13);d.setTextColor(...blue);d.text("COMPROBANTE DE INGRESO",195,18,{align:"right"});
+  d.setFontSize(11);d.setTextColor(...ink);d.text(G.map(x=>otNum(x.numero)).join("  "),195,25,{align:"right"});
+  d.setFont("helvetica","normal");d.setFontSize(9);d.text("Fecha de ingreso: "+fmtD(o.fechaIngreso),195,30,{align:"right"});
+  d.setDrawColor(200,207,214);d.line(15,36,195,36);let y=45;
+  const lab=(t,x,yy)=>{d.setFont("helvetica","bold");d.setFontSize(8.5);d.setTextColor(...gray);d.text(t.toUpperCase(),x,yy)};
+  const val=(t,x,yy,w)=>{d.setFont("helvetica","normal");d.setFontSize(10);d.setTextColor(...ink);const L=d.splitTextToSize(String(t||"-"),w);d.text(L,x,yy);return L.length};
+  lab("Cliente",15,y);val([c.nombre||o.clienteNombre,c.rut&&"RUT "+c.rut].filter(Boolean).join("   "),15,y+5,90);
+  lab("Contacto",110,y);val([c.telefono||c.whatsapp,c.email].filter(Boolean).join("   "),110,y+5,85);y+=13;
+  if(c.direccion||c.comuna){lab("Dirección",15,y);val([c.direccion,c.comuna].filter(Boolean).join(", "),15,y+5,180);y+=13}
+  G.forEach((x,i)=>{if(y>225){d.addPage();y=20}
+    d.setFillColor(238,241,244);d.roundedRect(15,y,180,8.5,1.5,1.5,"F");d.setFont("helvetica","bold");d.setFontSize(10.5);d.setTextColor(...ink);
+    d.text(`${G.length>1?(i+1)+". ":""}${[x.tipo,x.marca,x.modelo].filter(Boolean).join(" ")}`,18,y+5.8);d.setTextColor(...blue);d.text(otNum(x.numero),192,y+5.8,{align:"right"});y+=14;
+    lab("N° de serie",18,y);val(x.serie,18,y+5,48);lab("Accesorios recibidos",70,y);const n1=val(x.accesorios||"Sin accesorios",70,y+5,122);y+=6+Math.max(1,n1)*4.6;
+    lab("Falla reportada por el cliente",18,y);const n2=val(x.falla,18,y+5,174);y+=6+n2*4.6+4});
+  if(y>220){d.addPage();y=20}
+  y+=2;lab("Condiciones",15,y);y+=5;d.setFont("helvetica","normal");d.setFontSize(8.5);d.setTextColor(...gray);
+  ["El cliente declara que los equipos y accesorios detallados fueron entregados en las condiciones descritas.","El diagnóstico y presupuesto se informarán antes de realizar cualquier reparación. No se repara sin autorización del cliente.","Mecano Service no se responsabiliza por accesorios u objetos no detallados en este comprobante.","Equipos no retirados dentro de 90 días desde el aviso de término podrán generar cobro de bodegaje.","Para retirar el equipo presente este comprobante o indique su número de orden."].forEach(t=>{const L=d.splitTextToSize("- "+t,180);d.text(L,15,y);y+=L.length*4});
+  y=Math.max(y+22,255);if(y>282){d.addPage();y=40}
+  d.setDrawColor(...gray);d.setLineWidth(.3);d.line(22,y,88,y);d.line(122,y,188,y);d.setFontSize(9);d.setTextColor(...gray);d.text("Firma del cliente",55,y+5,{align:"center"});d.text("Recibido por Mecano Service",155,y+5,{align:"center"});
+  return d}
+function etiquetaDoc(o){const J=jsPdfOk();if(!J)return null;if(!window.qrcode){toast("No se pudo cargar el generador de QR. Recarga la página.");return null}
+  const G=grupoDe(o);const d=new J({unit:"mm",format:[70,40],orientation:"landscape"});
+  G.forEach((x,i)=>{if(i)d.addPage([70,40],"landscape");const c=cliente(x.clienteId)||{};
+    d.setDrawColor(43,55,66);d.setLineWidth(.4);d.roundedRect(1.5,1.5,67,37,2,2);
+    d.addImage(LOGO,"PNG",4,4,7,7);d.setFont("helvetica","bold");d.setFontSize(7.5);d.setTextColor(43,55,66);d.text("MECANO SERVICE",12.5,8.8);
+    d.setFontSize(17);d.setTextColor(26,120,189);d.text(otNum(x.numero),4,19.5);
+    d.setFontSize(8.5);d.setTextColor(28,39,49);d.text(d.splitTextToSize(c.nombre||x.clienteNombre||"",37)[0]||"",4,25.5);
+    d.setFont("helvetica","normal");d.setFontSize(7.2);d.text(d.splitTextToSize([x.tipo,x.marca,x.modelo].filter(Boolean).join(" "),37).slice(0,2),4,30);
+    d.setFontSize(6.5);d.setTextColor(95,111,124);d.text("Ingreso "+fmtD(x.fechaIngreso),4,36.3);
+    const qr=qrcode(0,"M");qr.addData(otLink(x));qr.make();const n=qr.getModuleCount(),size=23,cell=size/n,x0=43.5,y0=4.5;d.setFillColor(0,0,0);
+    for(let r=0;r<n;r++)for(let k=0;k<n;k++)if(qr.isDark(r,k))d.rect(x0+k*cell,y0+r*cell,cell+.03,cell+.03,"F");
+    d.setFontSize(5.5);d.setTextColor(95,111,124);d.text("Escanea para ver la orden",55,32.5,{align:"center"})});
+  return d}
+async function guardarPdf(d,name){const blob=d.output("blob");if(downloads){try{await downloads.save({filename:name,data:blob});toast("PDF listo")}catch(e){if(e?.code!=="declined")toast("No se pudo descargar el PDF.")}}}
+function compartirPdf(d,name,text){try{const f=new File([d.output("blob")],name,{type:"application/pdf"});if(navigator.canShare&&navigator.canShare({files:[f]})){toast("Elige WhatsApp y el chat del cliente.");navigator.share({files:[f],text}).catch(()=>{});return true}}catch(e){}return false}
 async function pdf(o){if(!window.jspdf){toast("No se pudo cargar el generador de PDF. Recarga la página.");return}
   const c=cliente(o.clienteId)||{};const T=totales(o);const {jsPDF}=window.jspdf;const d=new jsPDF({unit:"mm",format:"a4"});
   const gray=[74,91,105],blue=[26,120,189];let y=16;
@@ -733,6 +780,9 @@ document.addEventListener("click",async e=>{const t=e.target.closest("button,a,[
      if(S.modal.id){await upd("clientes",S.modal.id,c);toast("Cliente actualizado")}else{try{const r=await db.collection("clientes").add({...c,creado:new Date().toISOString()});toast("Cliente creado");S.modal={t:"cli",id:r.id};S.clientes.push({id:r.id,...c});renderModal()}catch(x){er.textContent="No se pudo guardar. Intenta de nuevo."}}break}
    case "addrep":if(o)upd("ordenes",o.id,{repuestos:[...(o.repuestos||[]),{nombre:"",codigo:"",cantidad:1,precio:0,estado:"Por pedir"}]});break;
    case "pdf":if(o)pdf(o);break;
+   case "comprobante":if(o){const d=comprobanteDoc(o);if(d)guardarPdf(d,nombreDoc("Comprobante",o))}break;
+   case "compcomp":if(o){const d=comprobanteDoc(o);if(!d)break;const nm=nombreDoc("Comprobante",o);if(!compartirPdf(d,nm,`Comprobante de ingreso ${grupoDe(o).map(x=>otNum(x.numero)).join(", ")} - Mecano Service`)){await guardarPdf(d,nm);toast("Se descargó el PDF: adjúntalo en el chat de WhatsApp del cliente.")}}break;
+   case "etiqueta":if(o){const d=etiquetaDoc(o);if(d)guardarPdf(d,nombreDoc("Etiqueta",o))}break;
    case "excel":excel();break;
    case "copymail":if(o){const txt=msgPresu(o);try{await navigator.clipboard.writeText(txt);toast("Texto copiado. Pégalo en tu correo.")}catch(x){const ta=document.createElement("textarea");ta.value=txt;ta.style.width="100%";ta.rows=10;t.after(ta);ta.select();toast("Selecciona y copia el texto")}}break;
    case "avisofoto":if(o)avisoConFoto(o);break;
