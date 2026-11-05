@@ -539,7 +539,7 @@ ${o.esGarantia?"":`<section class="panel${o.avisoRecibido?"":" warnbar"}" style=
 ${grupoDe(o).length>1?`<p class="notice" style="margin:0">Este cliente dejó <b>${grupoDe(o).length} herramientas</b> en el mismo ingreso: ${grupoDe(o).map(x=>x.id===o.id?`<b>${otNum(x.numero)}</b>`:`<button class="btn sm" data-ord="${x.id}">${otNum(x.numero)}</button>`).join(" ")}. El aviso incluye todas, con las fotos de cada una.</p>`:""}
 ${(o.fotos||[]).length?`<div class="photos">${o.fotos.slice(0,4).map((f,i)=>fotoTile(f,i,76)).join("")}</div>`:`<p class="notice" style="margin:0">Toma una foto del equipo o elígela de la galería para enviarla junto con el aviso.</p>`}
 <div class="actions">${assets?`<label class="btn" for="o-foto2" style="cursor:pointer">${m_upl===o.id?"Subiendo foto…":(o.fotos||[]).length?"Tomar otra foto":"Tomar foto del equipo"}<input id="o-foto2" type="file" accept="image/*" capture="environment" multiple data-foto="${o.id}" style="display:none"></label><label class="btn" for="o-foto3" style="cursor:pointer">Elegir de la galería<input id="o-foto3" type="file" accept="image/*" multiple data-foto="${o.id}" style="display:none"></label>`:""}
-${(o.fotos||[]).length?`<button class="btn wa" data-act="avisofoto">${svg("wa")}Enviar aviso con foto</button><button class="btn sm" data-act="sharefotos">Chat directo (fotos como link)</button><a class="btn" data-aviso="${o.id}" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgRecibido(o))}" target="_blank" rel="noopener">Solo texto</a>`:`<a class="btn wa" data-aviso="${o.id}" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgRecibido(o))}" target="_blank" rel="noopener">${svg("wa")}Avisar recepción por WhatsApp</a>`}
+${grupoDe(o).some(x=>(x.fotos||[]).length)?(fotoPend===o.id?`<div class="notice" style="border-left:4px solid var(--s-listo);width:100%"><b>Paso 2 de 2:</b> ahora envía la foto. Toca el botón verde y elige a <b>${esc(c?.nombre||"tu cliente")}</b>, que aparece primero en la lista.</div><button class="btn wa big" data-act="paso2">${svg("wa")}Enviar foto a ${esc((c?.nombre||"cliente").split(" ")[0])}</button><button class="btn sm" data-act="paso2no">Ya la envié</button>`:`<button class="btn wa big" data-act="avisofoto">${svg("wa")}Avisar con foto</button>`):`<a class="btn wa" data-aviso="${o.id}" href="https://wa.me/${waNum(c)}?text=${encodeURIComponent(msgRecibido(o))}" target="_blank" rel="noopener">${svg("wa")}Avisar recepción por WhatsApp</a>`}
 <button class="btn" data-act="copyrecibido">Copiar texto para email</button></div>
 ${waNum(c)?"":`<p class="err" style="margin:0">Este cliente no tiene teléfono ni WhatsApp. Agrégalo en su ficha para enviar el aviso directo a su chat.</p>`}</section>`}
 ${["listo","entr"].includes(o.estado)?`<section class="panel" style="border-top:4px solid var(--s-listo)"><div class="panel-h"><h3>Entrega al cliente</h3></div>
@@ -653,10 +653,14 @@ function abrirWA(n,t){const web=`https://wa.me/${n}?text=${encodeURIComponent(t)
   if(/Android/i.test(navigator.userAgent)){location.href=`intent://send/?phone=${n}&text=${encodeURIComponent(t)}#Intent;scheme=whatsapp;package=com.whatsapp.w4b;S.browser_fallback_url=${encodeURIComponent(web)};end`;return}
   let fuera=false;const h=()=>{if(document.hidden)fuera=true};document.addEventListener("visibilitychange",h);
   location.href=`whatsapp://send?phone=${n}&text=${encodeURIComponent(t)}`;setTimeout(()=>{document.removeEventListener("visibilitychange",h);if(!fuera&&!document.hidden)window.open(web,"_blank","noopener")},1800)}
-function avisoConFoto(o){const txt=msgRecibido(o);const fotos=grupoDe(o).flatMap(x=>x.fotos||[]).slice(0,6);const files=fotos.map(f=>fotoCache.get(f.url)).filter(Boolean);
-  if(files.length&&navigator.canShare&&navigator.canShare({files})){try{navigator.clipboard.writeText(txt).catch(()=>{})}catch(e){}
-    toast("Elige WhatsApp Business y el chat del cliente. El texto también quedó copiado.");navigator.share({files,text:txt}).then(()=>marcarRecibido(o)).catch(()=>{});return}
-  compartirFotos(o)}
+let fotoPend=null;
+function avisoConFoto(o){const n=waNum(cliente(o.clienteId));if(!n){toast("El cliente no tiene teléfono: agrégalo en su ficha.");return}
+  prefetchFotos(o);fotoPend=o.id;abrirWA(n,msgRecibido(o));marcarRecibido(o);setTimeout(()=>{if(S.modal)renderModal()},400)}
+function paso2Fotos(o){const files=grupoDe(o).flatMap(x=>x.fotos||[]).slice(0,6).map(f=>fotoCache.get(f.url)).filter(Boolean);
+  if(!files.length){prefetchFotos(o);toast("Las fotos se están cargando. Intenta de nuevo en unos segundos.");return}
+  if(navigator.canShare&&navigator.canShare({files})){navigator.share({files}).then(()=>{fotoPend=null;if(S.modal)renderModal();toast("Foto enviada.")}).catch(()=>{});return}
+  toast("Tu celular no permite compartir fotos desde aquí.")}
+document.addEventListener("visibilitychange",()=>{if(!document.hidden&&fotoPend&&S.modal?.t==="ord"){renderModal();setTimeout(()=>document.querySelector('[data-act="paso2"]')?.scrollIntoView({block:"center",behavior:"smooth"}),150)}});
 function compartirFotos(o){const txt=msgRecibido(o);const fotos=grupoDe(o).flatMap(x=>x.fotos||[]).slice(0,6);const n=waNum(cliente(o.clienteId));
   if(!n){toast("El cliente no tiene teléfono: agrégalo en su ficha.");return}
   abrirWA(n,txt+(fotos.length?"\n\nFoto"+(fotos.length>1?"s":"")+" del equipo:\n"+fotos.map(f=>f.url).join("\n"):""));marcarRecibido(o)}
@@ -842,6 +846,8 @@ document.addEventListener("click",async e=>{const t=e.target.closest("button,a,[
    case "etiqueta":if(o){const d=etiquetaDoc(o);if(d)guardarPdf(d,nombreDoc("Etiqueta",o))}break;
    case "excel":excel();break;
    case "copymail":if(o){const txt=msgPresu(fresco(o));try{await navigator.clipboard.writeText(txt);toast("Texto copiado. Pégalo en tu correo.")}catch(x){const ta=document.createElement("textarea");ta.value=txt;ta.style.width="100%";ta.rows=10;t.after(ta);ta.select();toast("Selecciona y copia el texto")}}break;
+   case "paso2":if(o)paso2Fotos(o);break;
+   case "paso2no":fotoPend=null;renderModal();break;
    case "sharefotos":if(o)compartirFotos(o);break;
    case "avisofoto":if(o)avisoConFoto(o);break;
    case "copylisto":if(o){const txt=msgListo(o);try{await navigator.clipboard.writeText(txt);toast("Texto copiado. Pégalo en tu correo.")}catch(x){toast("No se pudo copiar el texto.")}}break;
