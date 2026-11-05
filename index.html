@@ -543,7 +543,7 @@ ${(o.fotos||[]).length?`<button class="btn wa" data-act="avisofoto">${svg("wa")}
 <button class="btn" data-act="copyrecibido">Copiar texto para email</button></div>
 ${waNum(c)?"":`<p class="err" style="margin:0">Este cliente no tiene teléfono ni WhatsApp. Agrégalo en su ficha para enviar el aviso directo a su chat.</p>`}</section>`}
 ${["listo","entr"].includes(o.estado)?`<section class="panel" style="border-top:4px solid var(--s-listo)"><div class="panel-h"><h3>Entrega al cliente</h3></div>
-<p class="muted" style="margin:0">Imprime el comprobante de entrega: trae dos hojas, una para que firmen tú y el cliente y la guardes como respaldo, y otra copia para el cliente.</p>
+<p class="muted" style="margin:0">Imprime el comprobante de entrega: trae dos hojas, una para que la firme el cliente y la guardes como respaldo, y otra copia para el cliente.</p>
 <div class="actions"><button class="btn pri" data-act="compentrega">${svg("doc")}Comprobante de entrega para imprimir</button><button class="btn wa" data-act="envientrega">${svg("wa")}Enviar por WhatsApp</button></div></section>`:""}
 <section class="panel"><div class="panel-h"><h3>Documentos del ingreso</h3></div>
 <p class="muted" style="margin:0">${grupoDe(o).length>1?`Incluyen las ${grupoDe(o).length} herramientas de este ingreso.`:"Comprobante para el cliente y etiqueta para pegar en el equipo."}</p>
@@ -747,12 +747,10 @@ function entregaPagina(d,o,cp){const c=cliente(o.clienteId)||{};const T=totales(
   ["El cliente declara recibir conforme el equipo y los accesorios detallados, y que funciona correctamente al momento de la entrega.","La garantía no cubre mal uso, golpes, humedad, sobrecarga ni intervención de terceros.","Para hacer uso de la garantía presente este comprobante o indique su número de orden."].forEach(t=>{const L=d.splitTextToSize("- "+t,180);d.text(L,15,y);y+=L.length*3.8});
   // bloque de firmas
   let by=Math.max(y+5,216);d.setDrawColor(150,160,170);d.setLineWidth(.3);
-  const caja=(x,tit,campos)=>{d.roundedRect(x,by,87,62,2,2);d.setFont("helvetica","bold");d.setFontSize(9);d.setTextColor(...ink);d.text(tit,x+4,by+6.5);
-    d.setFont("helvetica","normal");d.setFontSize(8.5);d.setTextColor(...gray);let yy=by+16;campos.forEach(f=>{d.text(f+":",x+4,yy);d.line(x+4+d.getTextWidth(f+": "),yy+.6,x+83,yy+.6);yy+=10});
-    d.line(x+8,by+54,x+79,by+54);d.text("Firma",x+43.5,by+58.5,{align:"center"})};
-  caja(15,"RECIBE CONFORME (CLIENTE)",["Nombre","RUT","Fecha"]);
-  caja(108,"ENTREGA (MECANO SERVICE)",["Nombre","Cargo","Fecha"]);
-  d.setFont("helvetica","italic");d.setFontSize(7.5);d.setTextColor(...gray);d.text(cp[1]+"  ·  "+otNum(o.numero)+"  ·  Impreso el "+fmtD(today()),105,by+67,{align:"center"})}
+  d.roundedRect(15,by,180,54,2,2);d.setFont("helvetica","bold");d.setFontSize(9.5);d.setTextColor(...ink);d.text("RECIBE CONFORME (CLIENTE)",19,by+7);
+  d.setFont("helvetica","normal");d.setFontSize(9);d.setTextColor(...gray);let yy=by+19;["Nombre","RUT","Fecha"].forEach(f=>{d.text(f+":",19,yy);d.line(19+d.getTextWidth(f+": "),yy+.6,100,yy+.6);yy+=12});
+  d.line(112,by+40,189,by+40);d.text("Firma del cliente",150.5,by+45,{align:"center"});
+  d.setFont("helvetica","italic");d.setFontSize(7.5);d.setTextColor(...gray);d.text(cp[1]+"  ·  "+otNum(o.numero)+"  ·  Impreso el "+fmtD(today()),105,by+60,{align:"center"})}
 async function guardarPdf(d,name){const blob=d.output("blob");if(downloads){try{await downloads.save({filename:name,data:blob});toast("PDF listo")}catch(e){if(e?.code!=="declined")toast("No se pudo descargar el PDF.")}}}
 function compartirPdf(d,name,text){try{const f=new File([d.output("blob")],name,{type:"application/pdf"});if(navigator.canShare&&navigator.canShare({files:[f]})){toast("Elige WhatsApp y el chat del cliente.");navigator.share({files:[f],text}).catch(()=>{});return true}}catch(e){}return false}
 async function pdf(o){if(!window.jspdf){toast("No se pudo cargar el generador de PDF. Recarga la página.");return}
