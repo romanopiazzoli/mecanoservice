@@ -649,10 +649,12 @@ function msgRecibido(o){const c=cliente(o.clienteId);const eq=[o.tipo,o.marca,o.
   `\nGuarde su número de orden para cualquier consulta.\nSaludos, Mecano Service`}
 const fotoCache=new Map();
 function prefetchFotos(o){grupoDe(o).flatMap(x=>x.fotos||[]).slice(0,6).forEach((f,i)=>{if(fotoCache.has(f.url))return;fotoCache.set(f.url,null);fetch(f.url).then(r=>r.blob()).then(b=>fotoCache.set(f.url,new File([b],`${otNum(o.numero)}-foto${i+1}.jpg`,{type:b.type||"image/jpeg"}))).catch(()=>fotoCache.delete(f.url))})}
+function abrirWA(n,t){const q=`phone=${n}&text=${encodeURIComponent(t)}`;let fuera=false;const h=()=>{if(document.hidden)fuera=true};document.addEventListener("visibilitychange",h);
+  location.href=`whatsapp://send?${q}`;setTimeout(()=>{document.removeEventListener("visibilitychange",h);if(!fuera&&!document.hidden)window.open(`https://wa.me/${n}?text=${encodeURIComponent(t)}`,"_blank","noopener")},1800)}
 function avisoConFoto(o){const txt=msgRecibido(o);const fotos=grupoDe(o).flatMap(x=>x.fotos||[]).slice(0,6);const n=waNum(cliente(o.clienteId));
   if(!n){toast("El cliente no tiene teléfono: agrégalo en su ficha.");return}
   const t=txt+(fotos.length?"\n\nFoto"+(fotos.length>1?"s":"")+" del equipo:\n"+fotos.map(f=>f.url).join("\n"):"");
-  window.open(`https://wa.me/${n}?text=${encodeURIComponent(t)}`,"_blank","noopener");marcarRecibido(o)}
+  abrirWA(n,t);marcarRecibido(o)}
 function compartirFotos(o){const fotos=grupoDe(o).flatMap(x=>x.fotos||[]).slice(0,6);const files=fotos.map(f=>fotoCache.get(f.url)).filter(Boolean);
   if(files.length&&navigator.canShare&&navigator.canShare({files})){toast("Elige WhatsApp y busca el chat del cliente.");navigator.share({files}).catch(()=>{});return}
   toast("Tu celular no permite compartir fotos desde aquí. Usa «Enviar aviso con foto».")}
@@ -794,7 +796,8 @@ async function excel(){if(!window.XLSX){toast("No se pudo cargar el exportador. 
 
 /* ---------- eventos ---------- */
 document.addEventListener("click",async e=>{const t=e.target.closest("button,a,[data-bg]");if(!t)return;
-  if(t.dataset.presuwa&&S.modal?.t==="ord"){const oo=orden(S.modal.id);if(oo)t.href=`https://wa.me/${waNum(cliente(oo.clienteId))}?text=${encodeURIComponent(msgPresu(fresco(oo)))}`;if(document.activeElement&&document.activeElement!==t)document.activeElement.blur();return}
+  if(t.dataset.presuwa&&S.modal?.t==="ord"){const oo=orden(S.modal.id);if(oo)t.href=`https://wa.me/${waNum(cliente(oo.clienteId))}?text=${encodeURIComponent(msgPresu(fresco(oo)))}`;if(document.activeElement&&document.activeElement!==t)document.activeElement.blur()}
+  if(t.tagName==="A"&&/^https:\/\/wa\.me\//.test(t.href)){e.preventDefault();const u=new URL(t.href);abrirWA(u.pathname.replace(/\D/g,""),u.searchParams.get("text")||"")}
   if(t.dataset.bg&&e.target===t){closeModal();return}
   const d=t.dataset,a=d.act,o=S.modal?.t==="ord"?orden(S.modal.id):null;
   if(d.go){S[d.go==="ordenes"?"ordFilter":"garTab"]=d.f;location.hash=d.go;render();return}
@@ -811,7 +814,7 @@ document.addEventListener("click",async e=>{const t=e.target.closest("button,a,[
   if(d.rt){S.repTab=d.rt;render();return}
   if(d.repset){const[id,i,v]=d.repset.split("|");const oo=orden(id);if(oo)setRep(oo,Number(i),"estado",v);return}
   if(d.pick){S.modal.cli=d.pick;renderModal();return}
-  if(d.est&&o){let extra={};if(d.est==="listo"&&o.estado!=="listo"){const n=waNum(cliente(o.clienteId));if(n){window.open(`https://wa.me/${n}?text=${encodeURIComponent(msgListo(o))}`,"_blank","noopener");extra={avisoListo:new Date().toISOString()}}else toast("El cliente no tiene teléfono: agrégalo en su ficha para avisarle.")}cambiarEstado(o,d.est,extra);return}
+  if(d.est&&o){let extra={};if(d.est==="listo"&&o.estado!=="listo"){const n=waNum(cliente(o.clienteId));if(n){abrirWA(n,msgListo(o));extra={avisoListo:new Date().toISOString()}}else toast("El cliente no tiene teléfono: agrégalo en su ficha para avisarle.")}cambiarEstado(o,d.est,extra);return}
   if(d.pe&&o){upd("ordenes",o.id,{presupuestoEstado:d.pe,...(d.pe==="Aprobado"&&o.estado==="aprob"?{estado:(o.repuestos||[]).some(r=>r.estado==="Por pedir"||r.estado==="Pedido")?"rep":"repa",historial:[...(o.historial||[]),{e:(o.repuestos||[]).some(r=>r.estado==="Por pedir"||r.estado==="Pedido")?"rep":"repa",f:new Date().toISOString()}]}:{})});return}
   if(d.delrep&&o){const reps=[...(o.repuestos||[])];reps.splice(Number(d.delrep),1);upd("ordenes",o.id,{repuestos:reps});return}
   switch(a){
